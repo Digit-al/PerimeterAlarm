@@ -60,8 +60,15 @@ fun HomeScreen(viewModel: AppViewModel) {
     val alarms by viewModel.alarms.collectAsState()
 
     // Position actuelle pour afficher la distance à l'entrée de chaque alarme.
+    // GPS uniquement actif s'il y a au moins une alarme activée ET dans sa période.
     var currentLoc by remember { mutableStateOf<Location?>(null) }
-    observeCurrentLocation(enabled = true, intervalMs = 10_000) { loc ->
+    val anyActiveInPeriod = alarms.any { a ->
+        a.enabled && TimeUtils.isWithinPeriod(
+            a.alwaysOn, a.daysOfWeek,
+            a.startHour, a.startMinute, a.endHour, a.endMinute
+        )
+    }
+    observeCurrentLocation(enabled = anyActiveInPeriod, intervalMs = 10_000) { loc ->
         currentLoc = loc
     }
 
