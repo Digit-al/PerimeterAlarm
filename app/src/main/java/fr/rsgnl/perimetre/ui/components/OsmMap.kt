@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
+import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -105,6 +106,8 @@ fun OsmMap(
             mapView.setTileSource(TileSourceFactory.MAPNIK)
             mapView.setMultiTouchControls(true)
             mapView.zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
+            mapView.isFocusable = true
+            mapView.isFocusableInTouchMode = false
 
             // Détection de tap simple (pour changer la localisation).
             var downX = 0f
@@ -140,9 +143,26 @@ fun OsmMap(
             })
 
             mapRef = mapView
-            mapView
+
+            // Wrapper FrameLayout qui clippe : osmdroid 6.1.20 (MapView = ViewGroup)
+            // déborde de ses limites lors du zoom/pan car le scroll interne
+            // décale les enfants sans clipper. Le FrameLayout parent force le clip.
+            val wrapper = FrameLayout(ctx).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+                clipChildren = true
+                clipToPadding = true
+                addView(mapView, FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                ))
+            }
+            wrapper
         },
-        update = { mapView ->
+        update = { _ ->
+            val mapView = mapRef ?: return@AndroidView
             val center = GeoPoint(centerLat, centerLng)
 
             // Marqueur de l'alarme
