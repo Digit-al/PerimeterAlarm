@@ -60,10 +60,18 @@ class LocationMonitorService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val wakeChannel = Channel<Unit>(Channel.BUFFERED)
 
+    @Volatile
+    private var lastStatusPublishMs = 0L
+
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
             latestLocation.set(location)
-            publishStatuses(repository.loadAlarms())
+            // Publie le statut au maximum toutes les 5 s (évite de relire le JSON à chaque fix 1 s).
+            val now = System.currentTimeMillis()
+            if (now - lastStatusPublishMs >= 5000L) {
+                lastStatusPublishMs = now
+                publishStatuses(repository.loadAlarms())
+            }
         }
 
         @Deprecated("Deprecated in Java")
@@ -403,7 +411,7 @@ class LocationMonitorService : Service() {
         private const val ACTION_DISMISS = "fr.rsgnl.perimetre.ACTION_DISMISS"
         private const val EXTRA_ALARM_KEY = "alarm_key"
         private const val EXTRA_ALARM_ID = "alarm_id"
-        private const val MIN_UPDATE_MS = 5000L
+        private const val MIN_UPDATE_MS = 1000L
         private const val CHECK_NO_ALARM_MS = 30_000L
         private const val MIN_SLEEP_MS = 1_000L
         private const val SPEED_EPS = 0.05 // m/s
