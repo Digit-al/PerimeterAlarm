@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="36dp"
+    android:height="36dp"
+    android:viewportWidth="36"
+    android:viewportHeight="36">
+    <!-- halo -->
+    <path
+        android:fillColor="#334285F4"
+        android:pathData="M18,18m-16,0a16,16 0,1 1,32 0a16,16 0,1 1,-32 0" />
+    <!-- anneau blanc -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M18,18m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+    <!-- point bleu -->
+    <path
+        android:fillColor="#FF4285F4"
+        android:pathData="M18,18m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
+</vector>
