@@ -28,7 +28,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repository = AlarmRepository(app)
 
-    private val _alarms = MutableStateFlow(repository.loadAlarms())
+    private val _alarms: MutableStateFlow<List<Alarm>> = MutableStateFlow(repository.loadAlarms())
     val alarms: StateFlow<List<Alarm>> = _alarms.asStateFlow()
 
     private val _settings = MutableStateFlow(repository.loadSettings())
@@ -95,8 +95,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun toggleAlarm(id: String, enabled: Boolean) {
-        val list = _alarms.value.toMutableList()
-        list.firstOrNull { it.id == id }?.enabled = enabled
+        val list = _alarms.value.map { if (it.id == id) it.copy(enabled = enabled) else it }
         repository.saveAlarms(list)
         _alarms.value = list
         refreshService()
