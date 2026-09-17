@@ -108,10 +108,12 @@ app/src/main/java/fr/rsgnl/perimetre/
 
 ### Monitoring service
 `LocationMonitorService` is a **foreground service** (type `location`) that:
-1. subscribes to GPS/network (updates every 5 s),
+1. requests a **single GPS fix** at each check (GPS only on ~5-15 s per cycle → minimal battery),
 2. for each active and in-period alarm, keeps a **state** (last distance, speed, next interval, triggered state),
 3. schedules the next check with the dynamic formula above,
 4. triggers the alarm when entering the perimeter.
+
+> **Battery**: the GPS is NOT continuously locked. When you are far and stationary (next check in 5 min), the GPS only wakes up for ~15 s to take a fix, then powers off. When you approach, checks become more frequent and the GPS is active more often — exactly when you need it.
 
 The service starts automatically when at least one alarm is enabled (including after a device reboot, via `BootReceiver`), and stops when no alarm is active.
 
