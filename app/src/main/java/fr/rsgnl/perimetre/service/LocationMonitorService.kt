@@ -34,17 +34,22 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.coroutines.resume
 
 /**
  * Service en premier plan qui surveille la position et déclenche les alarmes de périmètre.
  *
- * Logique d'intervalle dynamique par alarme :
- *  - vérification de départ toutes les [minIntervalSeconds] secondes ;
- *  - ensuite l'intervalle = durée d'arrivée estimée (distance / vitesse de rapprochement) / 2,
- *    bornée entre l'intervalle minimum et l'intervalle maximum (configurables).
- *  - si l'utilisateur ne se rapproche pas, on repasse à l'intervalle maximum.
+ * Stratégie GPS économe : **un fix unique par vérification**.
+ * Le GPS ne s'allume que le temps d'obtenir un fix (~5-15 s), puis s'éteint
+ * jusqu'à la prochaine vérification. L'intervalle entre vérifications est dynamique :
+ *  - si l'utilisateur est loin ou immobile → intervalle max (config, ex: 5 min) ;
+ *  - s'il se rapproche → intervalle = ETA / 2, borné entre min et max.
+ *
+ * Résultat : batterie préservée quand on est loin, détection rapide quand on approche.
  */
 class LocationMonitorService : Service() {
 
@@ -52,34 +57,10 @@ class LocationMonitorService : Service() {
     private val latestLocation = AtomicReference<Location?>(null)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private lateinit var locationManager: LocationManager
-    @Volatile
-    private var tracking = false
-    private val trackedProviders = mutableListOf<String>()
     private val trackers = HashMap<String, Tracker>()
     private val soundPlayer = AlarmSoundPlayer()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val wakeChannel = Channel<Unit>(Channel.BUFFERED)
-
-    @Volatile
-    private var lastStatusPublishMs = 0L
-
-    private val locationListener = object : LocationListener {
-        override fun onLocationChanged(location: Location) {
-            latestLocation.set(location)
-            // Publie le statut au maximum toutes les 5 s (évite de relire le JSON à chaque fix 1 s).
-            val now = System.currentTimeMillis()
-            if (now - lastStatusPublishMs >= 5000L) {
-                lastStatusPublishMs = now
-                publishStatuses(repository.loadAlarms())
-            }
-        }
-
-        @Deprecated("Deprecated in Java")
-        override fun onProviderEnabled(provider: String) {}
-
-        @Deprecated("Deprecated in Java")
-        override fun onProviderDisabled(provider: String) {}
-    }
 
     override fun onCreate() {
         super.onCreate()
@@ -97,7 +78,7 @@ class LocationMonitorService : Service() {
             startForeground(NOTIF_ID_MONITOR, notification)
         }
 
-        // Amorce la position connue.
+        // Amorce avec la dernière position connue (sans allumer le GPS).
         for (provider in availableProviders()) {
             try {
                 locationManager.getLastKnownLocation(provider)?.let { latestLocation.set(it) }
@@ -105,7 +86,6 @@ class LocationMonitorService : Service() {
             }
         }
 
-        startTracking()
         publishStatuses(repository.loadAlarms())
         scope.launch { monitorLoop() }
     }
@@ -121,7 +101,6 @@ class LocationMonitorService : Service() {
 
     override fun onDestroy() {
         scope.cancel()
-        stopTracking()
         soundPlayer.release()
         MonitorStatus.clear()
         if (instance === this) instance = null
@@ -130,7 +109,8 @@ class LocationMonitorService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    // ---------------- Suivi de position ----------------
+    // ---------------- Acquisition de position (single fix) ----------------
+
     private fun availableProviders(): List<String> {
         val list = mutableListOf<String>()
         if (isProviderEnabled(LocationManager.GPS_PROVIDER)) list.add(LocationManager.GPS_PROVIDER)
@@ -146,36 +126,59 @@ class LocationMonitorService : Service() {
             false
         }
 
-    private fun startTracking() {
-        if (tracking) return
+    /**
+     * Demande un fix GPS unique (ou réseau en fallback).
+     * Le GPS ne reste allumé que le temps de l'acquisition.
+     * Retourne null si aucun fix obtenu dans le délai [FIX_TIMEOUT_MS].
+     */
+    private suspend fun requestSingleFix(): Location? {
+        // Tente d'abord le GPS, puis le réseau.
         for (provider in availableProviders()) {
-            try {
-                locationManager.requestLocationUpdates(
-                    provider,
-                    MIN_UPDATE_MS,
-                    0f,
-                    locationListener,
-                    Looper.getMainLooper()
-                )
-                trackedProviders.add(provider)
-                tracking = true
-            } catch (ignored: SecurityException) {
-            } catch (ignored: IllegalArgumentException) {
-            }
-        }
-    }
+            val fix = withContext(Dispatchers.Main) {
+                suspendCancellableCoroutine<Location?> { cont ->
+                    lateinit var removeFn: () -> Unit
+                    val listener = object : LocationListener {
+                        override fun onLocationChanged(location: Location) {
+                            latestLocation.set(location)
+                            removeFn()
+                            if (!cont.isCompleted) cont.resume(location)
+                        }
 
-    private fun stopTracking() {
-        if (!tracking) return
-        try {
-            locationManager.removeUpdates(locationListener)
-        } catch (ignored: Exception) {
+                        @Deprecated("Deprecated in Java")
+                        override fun onProviderEnabled(provider: String) {}
+
+                        @Deprecated("Deprecated in Java")
+                        override fun onProviderDisabled(provider: String) {}
+                    }
+                    removeFn = {
+                        try { locationManager.removeUpdates(listener) }
+                        catch (ignored: Exception) { }
+                    }
+                    try {
+                        locationManager.requestLocationUpdates(
+                            provider,
+                            0L,   // pas de minTime (on veut un fix rapide)
+                            0f,    // pas de minDistance
+                            listener,
+                            Looper.getMainLooper()
+                        )
+                    } catch (e: Exception) {
+                        if (!cont.isCompleted) cont.resume(null)
+                        return@suspendCancellableCoroutine
+                    }
+                    // Si le contexte est annulé (timeout), on retire le listener.
+                    cont.invokeOnCancellation {
+                        mainHandler.post { removeFn() }
+                    }
+                }
+            } ?: continue
+            return fix
         }
-        trackedProviders.clear()
-        tracking = false
+        return null
     }
 
     // ---------------- Boucle de surveillance ----------------
+
     private suspend fun monitorLoop() {
         while (true) {
             val alarms = repository.loadAlarms()
@@ -184,6 +187,7 @@ class LocationMonitorService : Service() {
             val maxSec = settings.maxIntervalSeconds.coerceAtLeast(minSec)
             val minMs = minSec.toLong() * 1000L
             val maxMs = maxSec.toLong() * 1000L
+
             // Alarmes activées ET dans leur période de validité.
             val activeInPeriod = alarms.filter { a ->
                 a.enabled && TimeUtils.isWithinPeriod(
@@ -192,20 +196,12 @@ class LocationMonitorService : Service() {
                 )
             }
 
-            // Suivi GPS uniquement si au moins une alarme est active et dans sa période.
-            val shouldTrack = activeInPeriod.isNotEmpty()
-            if (shouldTrack != tracking) {
-                mainHandler.post {
-                    if (shouldTrack) startTracking() else stopTracking()
-                }
-            }
-
             publishStatuses(alarms)
 
             if (activeInPeriod.isEmpty()) {
                 trackers.clear()
-                // On dort jusqu'au prochain début de période d'une alarme activée (ou jusqu'à
-                // un changement de liste, signalé via requestWake). Plus de polling à 30 s.
+                // On dort jusqu'au prochain début de période d'une alarme activée
+                // (ou jusqu'à un changement de liste, signalé via requestWake).
                 val nowMs = System.currentTimeMillis()
                 val nextStart = alarms.filter { it.enabled }
                     .mapNotNull {
@@ -224,16 +220,27 @@ class LocationMonitorService : Service() {
             val now = System.currentTimeMillis()
             var nextDue = Long.MAX_VALUE
             val stillActive = HashSet<String>()
+            val dueAlarms = mutableListOf<Alarm>()
 
             for (alarm in activeInPeriod) {
                 stillActive.add(alarm.id)
                 val tracker = trackers.getOrPut(alarm.id) { Tracker() }
                 if (tracker.lastCheckMs + tracker.nextIntervalMs <= now) {
-                    performCheck(alarm, tracker, latestLocation.get(), minMs, maxMs)
-                    nextDue = minOf(nextDue, now + tracker.nextIntervalMs)
-                } else {
-                    nextDue = minOf(nextDue, tracker.lastCheckMs + tracker.nextIntervalMs)
+                    dueAlarms.add(alarm)
                 }
+                nextDue = minOf(nextDue, tracker.lastCheckMs + tracker.nextIntervalMs)
+            }
+
+            // Un seul fix GPS pour toutes les vérifications dues ce cycle.
+            if (dueAlarms.isNotEmpty()) {
+                val location = requestSingleFix() ?: latestLocation.get()
+                for (alarm in dueAlarms) {
+                    val tracker = trackers[alarm.id]!!
+                    performCheck(alarm, tracker, location, minMs, maxMs)
+                    nextDue = minOf(nextDue, System.currentTimeMillis() + tracker.nextIntervalMs)
+                }
+                // Refresh du statut après les checks.
+                publishStatuses(alarms)
             }
 
             for (key in trackers.keys.toList()) {
@@ -342,6 +349,7 @@ class LocationMonitorService : Service() {
     }
 
     // ---------------- Notifications ----------------
+
     private fun ensureChannels() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val monitor = NotificationChannel(
@@ -353,7 +361,6 @@ class LocationMonitorService : Service() {
             CHANNEL_ALARM, getString(R.string.notif_channel_alarm_name), NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = getString(R.string.notif_channel_alarm_desc)
-            // Son et vibration gérés par AlarmSoundPlayer (réglages personnalisables).
         }
         manager.createNotificationChannel(monitor)
         manager.createNotificationChannel(alarm)
@@ -398,7 +405,6 @@ class LocationMonitorService : Service() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
-            // Son/vibration émis par AlarmSoundPlayer (pour respecter les réglages).
             .addAction(NotificationCompat.Action.Builder(null, getString(R.string.notif_alarm_stop), pendingDismiss).build())
             .setContentIntent(pendingOpen)
             .build()
@@ -411,8 +417,7 @@ class LocationMonitorService : Service() {
         private const val ACTION_DISMISS = "fr.rsgnl.perimetre.ACTION_DISMISS"
         private const val EXTRA_ALARM_KEY = "alarm_key"
         private const val EXTRA_ALARM_ID = "alarm_id"
-        private const val MIN_UPDATE_MS = 1000L
-        private const val CHECK_NO_ALARM_MS = 30_000L
+        private const val FIX_TIMEOUT_MS = 15_000L   // délai max pour obtenir un fix
         private const val MIN_SLEEP_MS = 1_000L
         private const val SPEED_EPS = 0.05 // m/s
         private const val NO_ACTIVE_ALARM_FALLBACK_MS = 15 * 60_000L    // filet de sécurité 15 min
