@@ -1,5 +1,7 @@
 package fr.rsgnl.perimetre.data
 
+import android.content.Context
+import fr.rsgnl.perimetre.R
 import java.util.UUID
 
 /**
@@ -43,10 +45,23 @@ data class Alarm(
     var enabled: Boolean = true,
     var sound: SoundSettings = SoundSettings()
 ) {
-    val displayName: String
-        get() = name.trim().ifEmpty {
-            String.format("Alarme %.4f, %.4f", latitude, longitude)
+    /** Nom affiché : le nom saisi, ou un nom par défaut basé sur les coordonnées. */
+    fun displayName(context: Context): String =
+        name.trim().ifEmpty {
+            context.getString(R.string.alarm_default_name, latitude, longitude)
         }
+}
+
+/**
+ * Langues supportées par l'application.
+ *
+ * @see AppSettings.language
+ */
+object AppLanguage {
+    const val AUTO = "auto" // suit la langue du téléphone (défaut)
+    const val EN = "en"
+    const val FR = "fr"
+    val SUPPORTED = listOf(AUTO, EN, FR)
 }
 
 /**
@@ -55,9 +70,11 @@ data class Alarm(
  * @param minIntervalSeconds Intervalle minimum (secondes) entre deux vérifications.
  * @param maxIntervalSeconds Intervalle maximum (secondes) entre deux vérifications.
  * @param defaultSound Réglages sonores par défaut, appliqués aux alarmes qui les utilisent.
+ * @param language Langue de l'interface (AppLanguage), « auto » suit le téléphone.
  */
 data class AppSettings(
     var minIntervalSeconds: Int = 30,
     var maxIntervalSeconds: Int = 300,
-    var defaultSound: SoundSettings = SoundSettings(useDefault = false)
+    var defaultSound: SoundSettings = SoundSettings(useDefault = false),
+    var language: String = AppLanguage.AUTO
 )

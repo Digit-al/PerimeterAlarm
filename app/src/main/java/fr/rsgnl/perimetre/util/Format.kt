@@ -1,5 +1,7 @@
 package fr.rsgnl.perimetre.util
 
+import android.content.Context
+import fr.rsgnl.perimetre.R
 import java.util.Locale
 
 /**
@@ -8,22 +10,19 @@ import java.util.Locale
 object Format {
 
     /** Distance lisible : mètres en dessous de 1 km, kilomètres au-delà. */
-    fun distance(meters: Double?): String {
-        if (meters == null) return "—"
+    fun distance(context: Context, meters: Double?): String {
+        if (meters == null) return context.getString(R.string.unknown)
         return if (meters < 1000) {
-            String.format(Locale.FRENCH, "%.0f m", meters)
+            String.format(Locale.getDefault(), context.getString(R.string.fmt_distance_m), meters)
         } else {
-            String.format(Locale.FRENCH, "%.2f km", meters / 1000.0)
+            String.format(Locale.getDefault(), context.getString(R.string.fmt_distance_km), meters / 1000.0)
         }
     }
 
-    /** Libellé de distance à l'entrée d'un périmètre (négatif = déjà dedans). */
-    fun distanceToEntry(entryMeters: Double?): String {
-        if (entryMeters == null) return "position inconnue"
-        return if (entryMeters <= 0) {
-            "dans la zone"
-        } else {
-            distance(entryMeters) + " à l'entrée"
-        }
+    /** Valeur lisible de la distance à l'entrée d'un périmètre (négative = déjà dedans). */
+    fun distanceToEntry(context: Context, entryMeters: Double?): String {
+        if (entryMeters == null) return context.getString(R.string.fmt_unknown_location)
+        return if (entryMeters <= 0) context.getString(R.string.fmt_in_zone)
+        else distance(context, entryMeters)
     }
 }

@@ -66,9 +66,8 @@ object TimeUtils {
     fun formatHourMinute(hour: Int, minute: Int): String =
         String.format("%02d:%02d", hour, minute)
 
-    /** Libellé lisible des jours sélectionnés (ISO 1..7). */
-    fun formatDays(days: Set<Int>): String {
-        val names = arrayOf("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim")
-        return days.sorted().joinToString(" ") { names[it - 1] }
+    /** Libellé lisible des jours sélectionnés (ISO 1..7). [dayNames] ordonné lundi → dimanche. */
+    fun formatDays(days: Set<Int>, dayNames: Array<String>): String {
+        return days.sorted().joinToString(" ") { dayNames[it - 1] }
     }
 }

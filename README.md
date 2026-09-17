@@ -1,71 +1,77 @@
-# Périmètre Alarme 📍🔔
+# Perimeter Alarm 📍🔔
 
-Application Android qui **déclenche une alarme lorsque vous entrez dans un périmètre** défini autour d'une localisation choisie sur une carte OpenStreetMap.
+Android app that **triggers an alarm when you enter a perimeter** defined around a location you pick on an OpenStreetMap map.
 
-- **Langage / UI** : Kotlin + Jetpack Compose (Material 3)
-- **Carte** : [osmdroid](https://osmdroid.org/) (tuiles OpenStreetMap, aucune clé API requise)
-- **Persistance** : SharedPreferences + Gson (pas de base de données)
+- **Language / UI**: Kotlin + Jetpack Compose (Material 3)
+- **Map**: [osmdroid](https://osmdroid.org/) (OpenStreetMap tiles, no API key required)
+- **Persistence**: SharedPreferences + Gson (no database)
 - **minSdk** 26 (Android 8.0) · **targetSdk** 34 (Android 14)
+
+📄 Also available in French: [README.fr.md](README.fr.md)
 
 ---
 
-## Fonctionnalités
+## Features
 
-### Écran d'accueil
-- Liste des alarmes programmées.
-- Pour chaque alarme : **bouton d'édition** ✏️ et **toggle d'activation** (interrupteur).
-- Un point vert indique une alarme **active et dans sa période de validité** en ce moment.
-- **Distance à l'entrée** du périmètre affichée en direct pour chaque alarme activée (« à X m à l'entrée » ou « dans la zone »).
-- **Bouton « + »** en bas à droite pour ajouter une alarme, et un bouton **🐞 Debug** dans la barre de titre.
+### Home screen
+- List of programmed alarms.
+- For each alarm: an **edit button** ✏️ and an **enable toggle** (switch).
+- A green dot indicates an alarm that is **active and within its validity period** right now.
+- **Distance to the perimeter entry** shown live for alarms that are active and in their validity period ("X m to entry" or "inside zone").
+- A **"+" button** at the bottom right to add an alarm, and a **🐞 Debug** button in the title bar.
 
-### Édition d'une alarme
-Une alarme se compose de :
+### Editing an alarm
+An alarm consists of:
 
-1. **Localisation** — choisie sur la carte OpenStreetMap :
-   - touchez la carte pour déplacer le repère,
-   - bouton **« Ma position »** pour centrer sur votre position actuelle,
-   - bouton **« Recadrer »** pour ajuster le zoom sur le cercle.
+1. **Location** — chosen on the OpenStreetMap map:
+   - tap the map to move the marker,
+   - **"My location"** button to center on your current position,
+   - **"Recenter"** button to fit the zoom on the circle.
 
-2. **Périmètre** (cercle) — trois éléments **synchronisés en temps réel** :
-   - le **cercle visuel** autour de la localisation sur la carte,
-   - un **slider** pour agrandir/réduire le rayon (10 m → 5 km),
-   - un **champ texte** pour saisir une valeur exacte en mètres.
-   - Modifier l'un des trois met à jour instantanément les deux autres.
+2. **Perimeter** (circle) — three elements **synchronized in real time**:
+   - the **visual circle** around the location on the map,
+   - a **slider** to grow/shrink the radius (10 m → 5 km),
+   - a **text field** to type an exact value in meters.
+   - Changing any of the three instantly updates the other two.
 
-3. **Période de validité** :
-   - des **cases à cocher** pour chaque **jour de la semaine** (Lun → Dim),
-   - **heure de début** et **heure de fin** (sélecteurs d'heure, gère les périodes qui traversent minuit),
-   - ou un simple **toggle « Toujours active »** (24 h/24, 7 j/7).
+3. **Validity period**:
+   - **checkboxes** for each **day of the week** (Mon → Sun),
+   - a **start time** and an **end time** (time pickers, handles periods crossing midnight),
+   - or a simple **"Always on"** toggle (24/7).
 
-4. **Sonnerie & vibration** (spécifique à l'alarme) :
-   - toggle « utiliser les réglages par défaut » (sinon réglages personnalisés),
-   - **vibreur** (on/off), **volume** (slider 0–100 %), **sonnerie** (choix parmi les sons d'alarme de l'appareil, ou défaut système).
+4. **Ringtone & vibration** (specific to the alarm):
+   - "use default settings" toggle (otherwise custom settings),
+   - **vibration** (on/off), **volume** (0–100 % slider), **ringtone** (choose from the device's alarm tones, or the system default).
 
-### Logique de vérification dynamique
-Lorsqu'une alarme est **activée** et **dans sa période de validité**, la position est vérifiée à des intervalles dynamiques :
+### Dynamic check logic
+When an alarm is **enabled** and **within its validity period**, the position is checked at dynamic intervals:
 
-- **toutes les 30 s** au début,
-- puis l'intervalle est calculé à partir de la **distance** qui vous sépare de la localisation et de votre **vitesse de rapprochement** :
+- **every 30 s** at first,
+- then the interval is computed from the **distance** between you and the location and your **approach speed**:
 
   ```
-  durée d'arrivée estimée  =  distance / vitesse de rapprochement
-  prochain intervalle      =  durée d'arrivée estimée / 2
+  estimated time of arrival = distance / approach speed
+  next interval             = estimated time of arrival / 2
   ```
 
-  borné entre un **minimum** et un **maximum** (par défaut 30 s et 5 min) :
-  - si vous vous rapprochez vite → vérifications plus fréquentes (jusqu'au minimum, 30 s) ;
-  - si vous ne vous rapprochez pas → vérifications espacées (jusqu'au maximum, 5 min).
+  clamped between a **minimum** and a **maximum** (defaults: 30 s and 5 min):
+  - if you are approaching fast → more frequent checks (down to the minimum, 30 s);
+  - if you are not approaching → sparser checks (up to the maximum, 5 min).
 
-- **Déclenchement** : quand la distance devient ≤ au rayon, une alarme (notification haute priorité + son + vibration) est émise. Une **hystérésis** de 15 % évite les re-déclenchements tant que vous restez dans la zone.
+- **Triggering**: when the distance becomes ≤ the radius, an alarm (high-priority notification + sound + vibration) is raised. A **15 % hysteresis** prevents re-triggering while you stay inside the zone.
 
-### Paramètres
-La page **Paramètres** permet de configurer :
-- l'**intervalle minimum** (secondes, défaut 30),
-- l'**intervalle maximum** (secondes, défaut 300 = 5 min),
-- l'**alarme par défaut** : vibreur, volume et sonnerie (appliquée aux alarmes qui n'ont pas de réglage personnalisé).
+### Battery optimization (targeted sleeping)
+When no alarm is active and within its period, the service **sleeps until the next period start** (computed with the day-of-week + times, up to 8 days ahead) instead of polling every 30 s. Saving an alarm wakes the service immediately. Note: for sleeps of several days, Android Doze may delay the wake-up slightly (WorkManager/AlarmManager would be the next step).
 
-### Page de debug
-Accessible via le bouton 🐞 de l'accueil. Elle **journalise l'état de toutes les alarmes toutes les 30 secondes** ; chaque ligne commence par la **date/heure** et indique : actif, dans la période de validité, distance à l'entrée du périmètre, vitesse de rapprochement, et l'instant (ou le délai) du **prochain rafraîchissement** du service. Un compte à rebours affiche le délai avant la prochaine mise à jour.
+### Settings
+The **Settings** page lets you configure:
+- the **minimum interval** (seconds, default 30),
+- the **maximum interval** (seconds, default 300 = 5 min),
+- the **language**: *Auto* (follows the device language), *English* or *Français*,
+- the **default alarm**: vibration, volume and ringtone (applied to alarms that have no custom settings).
+
+### Debug page
+Accessible via the 🐞 button on the home screen. It **logs the state of all alarms every 30 seconds**, but only while the page is visible; each line starts with the **date/time** and reports: active, within the validity period, distance to the perimeter entry, approach speed, and the time (or delay) of the **next refresh** of the service. A countdown shows the time before the next update.
 
 ---
 
@@ -73,74 +79,82 @@ Accessible via le bouton 🐞 de l'accueil. Elle **journalise l'état de toutes 
 
 ```
 app/src/main/java/fr/rsgnl/perimetre/
-├── MainActivity.kt                  # Activité Compose unique + permissions + routage
+├── MainActivity.kt                  # Single Compose activity + permissions + routing
+├── PerimetreApp.kt                  # Application: applies the chosen language at startup
 ├── data/
-│   ├── Alarm.kt                     # Modèle Alarm + AppSettings
-│   └── AlarmRepository.kt           # Persistance SharedPreferences + Gson
+│   ├── Alarm.kt                     # Alarm model + SoundSettings + AppSettings + AppLanguage
+│   └── AlarmRepository.kt           # SharedPreferences + Gson persistence
 ├── ui/
-│   ├── AppViewModel.kt              # État (alarmes, paramètres, navigation)
-│   ├── HomeScreen.kt                # Liste + toggle + édition + FAB
-│   ├── EditorScreen.kt              # Carte + périmètre + période
-│   ├── SettingsScreen.kt            # Intervalle min/max
-│   ├── theme/Theme.kt               # Thème Material 3
-│   └── components/OsmMap.kt         # Carte osmdroid (marqueur, cercle, tap)
+│   ├── AppViewModel.kt              # State (alarms, settings, navigation, language)
+│   ├── HomeScreen.kt                # List + toggle + edit + FAB
+│   ├── EditorScreen.kt              # Map + perimeter + period + sound
+│   ├── SettingsScreen.kt            # Intervals + language + default alarm
+│   ├── DebugScreen.kt               # State logging (30 s, only while visible)
+│   ├── Strings.kt                   # Localized day names helper
+│   ├── theme/Theme.kt               # Material 3 theme
+│   └── components/
+│       ├── OsmMap.kt                # osmdroid map (marker, circle, tap)
+│       └── Widgets.kt               # Location watcher, day selector, sound editor
 ├── service/
-│   ├── LocationMonitorService.kt    # Foreground service : surveillance + alarme
-│   └── BootReceiver.kt              # Redémarrage après reboot
+│   ├── LocationMonitorService.kt    # Foreground service: monitoring + alarm
+│   └── BootReceiver.kt              # Restart after device reboot
 └── util/
     ├── Geo.kt                       # Haversine (distance)
-    ├── TimeUtils.kt                 # Période de validité + formatage
-    └── LocationUtils.kt             # Dernière position connue
+    ├── TimeUtils.kt                 # Validity period + next period start + formatting
+    ├── LocationUtils.kt             # Last known location
+    ├── Format.kt                    # Distance formatting
+    └── RingtoneUtils.kt             # Device alarm tone listing
 ```
 
-### Service de surveillance
-`LocationMonitorService` est un **foreground service** (type `location`) qui :
-1. s'abonne au GPS/réseau (mise à jour toutes les 5 s),
-2. pour chaque alarme active et dans sa période, maintient un **état** (dernière distance, vitesse, prochain intervalle, état déclenché),
-3. planifie la prochaine vérification via la formule dynamique ci-dessus,
-4. déclenche l'alarme à l'entrée dans le périmètre.
+### Monitoring service
+`LocationMonitorService` is a **foreground service** (type `location`) that:
+1. subscribes to GPS/network (updates every 5 s),
+2. for each active and in-period alarm, keeps a **state** (last distance, speed, next interval, triggered state),
+3. schedules the next check with the dynamic formula above,
+4. triggers the alarm when entering the perimeter.
 
-Le service démarre automatiquement s'il existe au moins une alarme activée (y compris au redémarrage de l'appareil via `BootReceiver`), et s'arrête quand aucune alarme n'est active.
+The service starts automatically when at least one alarm is enabled (including after a device reboot, via `BootReceiver`), and stops when no alarm is active.
 
 ---
 
-## Build & installation
+## Build & install
 
-### A) Avec Android Studio (recommandé)
-1. Ouvrez le dossier `PerimetreAlarm` dans Android Studio.
-2. Laissez la synchronisation Gradle se terminer.
-3. Appuyez sur **Run ▶** (ou `./gradlew installDebug`).
+### A) With Android Studio (recommended)
+1. Open the `PerimetreAlarm` folder in Android Studio.
+2. Let the Gradle sync finish.
+3. Press **Run ▶** (or `./gradlew installDebug`).
 
-### B) En ligne de commande
-Prérequis : JDK 17+ et Android SDK (platform 34, build-tools 34.0.0).
+### B) From the command line
+Prerequisites: JDK 17+ and the Android SDK (platform 34, build-tools 34.0.0).
 
 ```bash
-# définir le SDK si nécessaire
-echo "sdk.dir=/chemin/vers/le/android-sdk" > local.properties
+# set the SDK path if needed
+echo "sdk.dir=/path/to/the/android-sdk" > local.properties
 
-# générer l'APK de debug
+# build the debug APK
 ./gradlew :app:assembleDebug
 
-# APK produit :
+# produced APK:
 # app/build/outputs/apk/debug/app-debug.apk
 
-# ou installer directement sur un appareil connecté (adb)
+# or install directly on a connected device (adb)
 ./gradlew :app:installDebug
 ```
 
-> L'APK de debug est signé avec la clé de debug : c'est suffisant pour un test,
-> mais pour une publication il faudra configurer un keystore de release.
+> The debug APK is signed with the debug key: enough for testing,
+> but you'll need to configure a release keystore to publish.
 
-### Permissions demandées
-- `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` — position
-- `POST_NOTIFICATIONS` (Android 13+) — notifications d'alarme
-- `FOREGROUND_SERVICE(_LOCATION)` — service de surveillance
+### Permissions requested
+- `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` — location
+- `POST_NOTIFICATIONS` (Android 13+) — alarm notifications
+- `FOREGROUND_SERVICE(_LOCATION)` — monitoring service
 - `VIBRATE`, `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`, `INTERNET`
 
 ---
 
 ## Notes
-- **Aucune clé API** : les tuiles proviennent de `tile.openstreetmap.org` (attribution osmdroid). Pour un usage intensif, pensez à respecter la charte OSM ou à brancher votre propre serveur de tuiles.
-- La **batterie** est épargnée grâce aux intervalles dynamiques (pas de polling en continu) et au foreground service.
-- La **carte** affiche en permanence la **position actuelle** (point bleu, rafraîchie) par rapport à la localisation et au périmètre de l'alarme ; le zoom initial cadre le cercle (sur la position actuelle pour une nouvelle alarme, ou sur le point configuré en édition).
-- Pour passer en **release** : créez un keystore, puis `./gradlew :app:bundleRelease` ou `assembleRelease`.
+- **No API key**: tiles come from `tile.openstreetmap.org` (osmdroid attribution). For heavy use, consider respecting the OSM tile usage policy or hooking up your own tile server.
+- **Battery** is spared thanks to the dynamic intervals (no continuous polling), the targeted sleeping until the next period, and the foreground service.
+- The **map** always shows your **current position** (blue dot, refreshed) relative to the alarm's location and perimeter; the initial zoom frames the circle (on the current position for a new alarm, or on the configured point when editing).
+- **Languages**: English (default) and French. "Auto" follows the device language; a specific language can be forced from Settings.
+- To go **release**: create a keystore, then `./gradlew :app:bundleRelease` or `assembleRelease`.

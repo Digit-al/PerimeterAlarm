@@ -43,8 +43,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import fr.rsgnl.perimetre.R
 import fr.rsgnl.perimetre.data.Alarm
 import fr.rsgnl.perimetre.ui.components.observeCurrentLocation
 import fr.rsgnl.perimetre.util.Format
@@ -66,20 +68,20 @@ fun HomeScreen(viewModel: AppViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Mes alarmes") },
+                title = { Text(stringResource(R.string.home_title)) },
                 actions = {
                     IconButton(onClick = { viewModel.openDebug() }) {
-                        Icon(Icons.Filled.BugReport, contentDescription = "Debug")
+                        Icon(Icons.Filled.BugReport, contentDescription = stringResource(R.string.cd_debug))
                     }
                     IconButton(onClick = { viewModel.openSettings() }) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Paramètres")
+                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.cd_settings))
                     }
                 }
             )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { viewModel.openNewAlarm() }) {
-                Icon(Icons.Filled.Add, contentDescription = "Ajouter une alarme")
+                Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.cd_add_alarm))
             }
         }
     ) { padding ->
@@ -98,9 +100,9 @@ fun HomeScreen(viewModel: AppViewModel) {
                         tint = MaterialTheme.colorScheme.outline
                     )
                     Spacer(Modifier.height(12.dp))
-                    Text("Aucune alarme", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.home_empty_title), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Appuyez sur + pour en créer une",
+                        stringResource(R.string.home_empty_subtitle),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -124,6 +126,7 @@ fun HomeScreen(viewModel: AppViewModel) {
 
 @Composable
 fun AlarmRow(alarm: Alarm, viewModel: AppViewModel, currentLoc: Location?) {
+    val context = LocalContext.current
     val inPeriod = TimeUtils.isWithinPeriod(
         alarm.alwaysOn, alarm.daysOfWeek,
         alarm.startHour, alarm.startMinute, alarm.endHour, alarm.endMinute
@@ -148,43 +151,49 @@ fun AlarmRow(alarm: Alarm, viewModel: AppViewModel, currentLoc: Location?) {
             Spacer(Modifier.size(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = alarm.displayName,
+                    text = alarm.displayName(context),
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = String.format("%.4f, %.4f · rayon %d m", alarm.latitude, alarm.longitude, alarm.radiusMeters),
+                    text = stringResource(
+                        R.string.home_coord_radius,
+                        alarm.latitude, alarm.longitude, alarm.radiusMeters
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = periodLabel(alarm),
+                    text = periodLabel(context, alarm),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (alarm.enabled) {
+                if (activeNow) {
                     val inside = distEntry != null && distEntry <= 0
                     Text(
-                        text = "Distance à l'entrée : ${Format.distanceToEntry(distEntry)}",
+                        text = stringResource(
+                            R.string.home_distance_entry,
+                            Format.distanceToEntry(context, distEntry)
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = if (inside) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             IconButton(onClick = { viewModel.openEditAlarm(alarm.id) }) {
-                Icon(Icons.Filled.Edit, contentDescription = "Modifier")
+                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.cd_edit))
             }
             Switch(checked = alarm.enabled, onCheckedChange = { viewModel.toggleAlarm(alarm.id, it) })
         }
     }
 }
 
-fun periodLabel(alarm: Alarm): String {
+fun periodLabel(context: android.content.Context, alarm: Alarm): String {
     return if (alarm.alwaysOn) {
-        "Toujours active"
+        context.getString(R.string.always_on)
     } else {
-        val days = TimeUtils.formatDays(alarm.daysOfWeek)
+        val days = TimeUtils.formatDays(alarm.daysOfWeek, dayNames(context))
         val times = "${TimeUtils.formatHourMinute(alarm.startHour, alarm.startMinute)}–${TimeUtils.formatHourMinute(alarm.endHour, alarm.endMinute)}"
         "$days · $times"
     }

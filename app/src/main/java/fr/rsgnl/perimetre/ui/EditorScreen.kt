@@ -47,9 +47,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import fr.rsgnl.perimetre.R
 import fr.rsgnl.perimetre.data.Alarm
 import fr.rsgnl.perimetre.ui.components.DaySelector
 import fr.rsgnl.perimetre.ui.components.OsmMap
@@ -110,10 +112,15 @@ fun EditorScreen(viewModel: AppViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (editingId == null) "Nouvelle alarme" else "Modifier l'alarme") },
+                title = {
+                    Text(
+                        if (editingId == null) stringResource(R.string.editor_new_title)
+                        else stringResource(R.string.editor_edit_title)
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { viewModel.goBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -133,7 +140,7 @@ fun EditorScreen(viewModel: AppViewModel) {
                         viewModel.goBack()
                     },
                     enabled = editingId != null
-                ) { Text("Supprimer") }
+                ) { Text(stringResource(R.string.editor_delete)) }
                 Button(onClick = {
                     viewModel.saveAlarm(
                         Alarm(
@@ -152,7 +159,12 @@ fun EditorScreen(viewModel: AppViewModel) {
                             sound = draftSound.normalized()
                         )
                     )
-                }) { Text(if (editingId == null) "Ajouter" else "Enregistrer") }
+                }) {
+                    Text(
+                        if (editingId == null) stringResource(R.string.editor_add)
+                        else stringResource(R.string.editor_save)
+                    )
+                }
             }
         }
     ) { padding ->
@@ -168,7 +180,7 @@ fun EditorScreen(viewModel: AppViewModel) {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Nom (optionnel)") },
+                label = { Text(stringResource(R.string.editor_name_label)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -192,28 +204,29 @@ fun EditorScreen(viewModel: AppViewModel) {
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = {
+                    val notFound = context.getString(R.string.editor_location_not_found)
                     val loc = LocationUtils.lastKnownLocation(context)
                     if (loc != null) {
                         lat = loc.latitude
                         lng = loc.longitude
                         fitTrigger++
                     } else {
-                        scope.launch { snackbarHostState.showSnackbar("Position introuvable (GPS activé ?)") }
+                        scope.launch { snackbarHostState.showSnackbar(notFound) }
                     }
                 }) {
                     Icon(Icons.Filled.MyLocation, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Ma position")
+                    Text(stringResource(R.string.editor_my_location))
                 }
                 OutlinedButton(onClick = { fitTrigger++ }) {
                     Icon(Icons.Filled.CenterFocusStrong, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Recadrer")
+                    Text(stringResource(R.string.editor_recenter))
                 }
             }
 
             Text(
-                text = String.format("Localisation : %.5f, %.5f", lat, lng),
+                text = stringResource(R.string.editor_location, lat, lng),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -224,7 +237,7 @@ fun EditorScreen(viewModel: AppViewModel) {
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Périmètre", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.editor_perimeter), style = MaterialTheme.typography.titleMedium)
                     Slider(
                         value = radius.toFloat(),
                         onValueChange = { value ->
@@ -236,7 +249,7 @@ fun EditorScreen(viewModel: AppViewModel) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Rayon (mètres)", modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.editor_radius_label), modifier = Modifier.weight(1f))
                         OutlinedTextField(
                             value = radiusText,
                             onValueChange = { text ->
@@ -249,7 +262,7 @@ fun EditorScreen(viewModel: AppViewModel) {
                         )
                     }
                     Text(
-                        "Slider, valeur et cercle sur la carte sont synchronisés en temps réel.",
+                        stringResource(R.string.editor_radius_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -262,7 +275,7 @@ fun EditorScreen(viewModel: AppViewModel) {
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Période de validité", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.editor_period), style = MaterialTheme.typography.titleMedium)
 
                     DaySelector(
                         days = days,
@@ -274,7 +287,7 @@ fun EditorScreen(viewModel: AppViewModel) {
                     )
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Toujours active (24h/24, 7j/7)", modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.editor_always_on), modifier = Modifier.weight(1f))
                         Switch(
                             checked = alwaysOn,
                             onCheckedChange = { value ->
@@ -294,7 +307,7 @@ fun EditorScreen(viewModel: AppViewModel) {
                                 Spacer(Modifier.width(6.dp))
                                 Text(TimeUtils.formatHourMinute(startH, startM))
                             }
-                            Text("à")
+                            Text(stringResource(R.string.editor_time_to))
                             OutlinedButton(onClick = { showEndPicker = true }) {
                                 Icon(Icons.Filled.Schedule, contentDescription = null)
                                 Spacer(Modifier.width(6.dp))
@@ -311,7 +324,7 @@ fun EditorScreen(viewModel: AppViewModel) {
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("Sonnerie & vibration", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.editor_sound), style = MaterialTheme.typography.titleMedium)
                     SoundSettingsEditor(
                         settings = draftSound,
                         onChange = { draftSound = it },
@@ -322,7 +335,7 @@ fun EditorScreen(viewModel: AppViewModel) {
 
             // Activation
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Alarme activée", modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.editor_enabled), modifier = Modifier.weight(1f))
                 Switch(checked = enabled, onCheckedChange = { enabled = it })
             }
 
@@ -333,7 +346,7 @@ fun EditorScreen(viewModel: AppViewModel) {
     // Sélecteurs d'heure
     if (showStartPicker) {
         TimePickerDialog(
-            title = "Heure de début",
+            title = stringResource(R.string.editor_start_time),
             initialHour = startH,
             initialMinute = startM,
             onConfirm = { h, m ->
@@ -345,7 +358,7 @@ fun EditorScreen(viewModel: AppViewModel) {
     }
     if (showEndPicker) {
         TimePickerDialog(
-            title = "Heure de fin",
+            title = stringResource(R.string.editor_end_time),
             initialHour = endH,
             initialMinute = endM,
             onConfirm = { h, m ->
@@ -385,12 +398,12 @@ private fun TimePickerDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) { Text("Annuler") }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
                     Spacer(Modifier.width(8.dp))
                     TextButton(onClick = {
                         onConfirm(state.hour, state.minute)
                         onDismiss()
-                    }) { Text("OK") }
+                    }) { Text(stringResource(R.string.ok)) }
                 }
             }
         }

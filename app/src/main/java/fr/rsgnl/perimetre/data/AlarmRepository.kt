@@ -46,6 +46,8 @@ class AlarmRepository(context: Context) {
             s.defaultSound = snd?.normalized() ?: SoundSettings(useDefault = false)
             s.minIntervalSeconds = s.minIntervalSeconds.coerceAtLeast(5)
             s.maxIntervalSeconds = s.maxIntervalSeconds.coerceAtLeast(s.minIntervalSeconds)
+            // Champ ajouté après les premières versions : absent (null) ou inconnu → auto.
+            s.language = if (s.language in AppLanguage.SUPPORTED) s.language else AppLanguage.AUTO
             s
         } catch (e: Exception) {
             AppSettings()

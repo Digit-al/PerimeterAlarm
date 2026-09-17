@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Périmètre Alarme</string>
+
+    <!-- Days of week (ISO 1..7 = Monday..Sunday) -->
+    <string name="day_mon">Lun</string>
+    <string name="day_tue">Mar</string>
+    <string name="day_wed">Mer</string>
+    <string name="day_thu">Jeu</string>
+    <string name="day_fri">Ven</string>
+    <string name="day_sat">Sam</string>
+    <string name="day_sun">Dim</string>
+
+    <!-- Language -->
+    <string name="alarm_default_name">Alarme %1$.4f, %2$.4f</string>
+    <string name="settings_language">Langue</string>
+    <string name="settings_language_hint">« Auto » suit la langue du téléphone (anglais si indisponible).</string>
+    <string name="language_auto">Auto (langue du téléphone)</string>
+    <string name="language_en">Anglais</string>
+    <string name="language_fr">Français</string>
+
+    <!-- Common -->
+    <string name="back">Retour</string>
+    <string name="cancel">Annuler</string>
+    <string name="ok">OK</string>
+    <string name="close">Fermer</string>
+    <string name="yes">oui</string>
+    <string name="no">non</string>
+    <string name="unknown">—</string>
+
+    <!-- Distance / format -->
+    <string name="fmt_distance_m">%1$.0f m</string>
+    <string name="fmt_distance_km">%1$.2f km</string>
+    <string name="fmt_unknown_location">position inconnue</string>
+    <string name="fmt_in_zone">dans la zone</string>
+
+    <!-- Home -->
+    <string name="home_title">Mes alarmes</string>
+    <string name="cd_settings">Paramètres</string>
+    <string name="cd_debug">Debug</string>
+    <string name="cd_add_alarm">Ajouter une alarme</string>
+    <string name="cd_edit">Modifier</string>
+    <string name="home_empty_title">Aucune alarme</string>
+    <string name="home_empty_subtitle">Appuyez sur + pour en créer une</string>
+    <string name="home_coord_radius">%1$.4f, %2$.4f · rayon %3$d m</string>
+    <string name="home_distance_entry">Distance à l\'entrée : %1$s</string>
+    <string name="always_on">Toujours active</string>
+
+    <!-- Editor -->
+    <string name="editor_new_title">Nouvelle alarme</string>
+    <string name="editor_edit_title">Modifier l\'alarme</string>
+    <string name="editor_delete">Supprimer</string>
+    <string name="editor_add">Ajouter</string>
+    <string name="editor_save">Enregistrer</string>
+    <string name="editor_name_label">Nom (optionnel)</string>
+    <string name="editor_location_not_found">Position introuvable (GPS activé ?)</string>
+    <string name="editor_my_location">Ma position</string>
+    <string name="editor_recenter">Recadrer</string>
+    <string name="editor_location">Localisation : %1$.5f, %2$.5f</string>
+    <string name="editor_perimeter">Périmètre</string>
+    <string name="editor_radius_label">Rayon (mètres)</string>
+    <string name="editor_radius_hint">Slider, valeur et cercle sur la carte sont synchronisés en temps réel.</string>
+    <string name="editor_period">Période de validité</string>
+    <string name="editor_always_on">Toujours active (24h/24, 7j/7)</string>
+    <string name="editor_time_to">à</string>
+    <string name="editor_sound">Sonnerie &amp; vibration</string>
+    <string name="editor_enabled">Alarme activée</string>
+    <string name="editor_start_time">Heure de début</string>
+    <string name="editor_end_time">Heure de fin</string>
+
+    <!-- Sound settings -->
+    <string name="sound_use_default">Utiliser les réglages par défaut</string>
+    <string name="sound_vibration">Vibreur</string>
+    <string name="sound_volume">Volume : %1$d%%</string>
+    <string name="sound_ringtone">Sonnerie</string>
+    <string name="sound_choose_ringtone">Choisir la sonnerie</string>
+    <string name="sound_default_system">Défaut (système)</string>
+    <string name="sound_custom">Personnalisée</string>
+    <string name="sound_unknown_title">Son</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Paramètres</string>
+    <string name="settings_check_frequency">Fréquence de vérification de position</string>
+    <string name="settings_min_interval">Intervalle minimum (secondes)</string>
+    <string name="settings_min_interval_hint">Valeur de départ et plancher de la vérification dynamique.\nPar défaut : 30 s.</string>
+    <string name="settings_max_interval">Intervalle maximum (secondes)</string>
+    <string name="settings_max_interval_hint">Plafond de la vérification dynamique (quand on ne se rapproche pas).\nPar défaut : 300 s (5 minutes).</string>
+    <string name="settings_default_alarm">Alarme par défaut</string>
+    <string name="settings_default_alarm_hint">Appliquée aux alarmes qui n\'ont pas de réglage personnalisé.</string>
+    <string name="settings_interval_tip">Astuce : 1 minute = 60 s. L\'intervalle réel est estimé en temps réel à partir de la distance qui vous sépare de l\'alarme et de votre vitesse de rapprochement (durée d\'arrivée estimée / 2), et est borné entre le minimum et le maximum ci-dessus.</string>
+
+    <!-- Debug -->
+    <string name="debug_title">Debug</string>
+    <string name="cd_clear_log">Effacer le journal</string>
+    <string name="debug_refresh">Mise à jour toutes les 30 s · prochain rafraîchissement dans %1$d s</string>
+    <string name="debug_help">« dist.entrée » : distance à l\'entrée du périmètre (« dans la zone » si à l\'intérieur). « prochain » : instant de la prochaine vérification du service (ou — si non planifiée).</string>
+    <string name="debug_line">%1$s  %2$s | active=%3$s | période=%4$s | dist.entrée=%5$s | vitesse=%6$s | prochain=%7$s</string>
+    <string name="debug_in_seconds">dans %1$d s</string>
+
+    <!-- Notifications -->
+    <string name="notif_monitor_text">Surveillance en cours…</string>
+    <string name="notif_channel_monitor_name">Surveillance de position</string>
+    <string name="notif_channel_monitor_desc">Garde l\'application active en arrière-plan</string>
+    <string name="notif_channel_alarm_name">Alarmes de périmètre</string>
+    <string name="notif_channel_alarm_desc">Alarme lorsque vous entrez dans un périmètre</string>
+    <string name="notif_alarm_title">Périmètre atteint : %1$s</string>
+    <string name="notif_alarm_text">Vous êtes dans la zone (rayon %1$d m)</string>
+    <string name="notif_alarm_stop">Arrêter</string>
+</resources>

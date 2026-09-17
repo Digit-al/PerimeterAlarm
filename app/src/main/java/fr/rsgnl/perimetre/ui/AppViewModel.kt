@@ -1,10 +1,13 @@
 package fr.rsgnl.perimetre.ui
 
 import android.app.Application
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.AndroidViewModel
+import fr.rsgnl.perimetre.PerimetreApp
 import fr.rsgnl.perimetre.data.Alarm
 import fr.rsgnl.perimetre.data.AlarmRepository
 import fr.rsgnl.perimetre.data.AppSettings
+import fr.rsgnl.perimetre.data.AppLanguage
 import fr.rsgnl.perimetre.service.LocationMonitorService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -103,6 +106,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun updateSettings(settings: AppSettings) {
         repository.saveSettings(settings)
         _settings.value = settings
+    }
+
+    /**
+     * Change la langue de l'interface et l'applique immédiatement
+     * (l'activité est recréée par AppCompat avec la nouvelle configuration).
+     *
+     * @param language Valeur [AppLanguage] (« auto », « en », « fr »).
+     */
+    fun setLanguage(language: String) {
+        if (language !in AppLanguage.SUPPORTED) return
+        updateSettings(_settings.value.copy(language = language))
+        AppCompatDelegate.setApplicationLocales(PerimetreApp.localesFor(language))
     }
 
     /** Démarre/arrête le service selon la présence d'alarmes activées. */

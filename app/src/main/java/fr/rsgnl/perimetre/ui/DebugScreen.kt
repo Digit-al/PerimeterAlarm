@@ -27,8 +27,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import fr.rsgnl.perimetre.R
 import fr.rsgnl.perimetre.data.MonitorStatus
 import fr.rsgnl.perimetre.util.Format
 import kotlinx.coroutines.delay
@@ -43,6 +49,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugScreen(viewModel: AppViewModel) {
+    val context = LocalContext.current
     val alarms by viewModel.alarms.collectAsState()
     val statuses by MonitorStatus.statuses.collectAsState()
 
@@ -50,11 +57,16 @@ fun DebugScreen(viewModel: AppViewModel) {
     var nextRefreshAt by remember { mutableLongStateOf(System.currentTimeMillis() + 30_000) }
     var tick by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
+    // Le polling et le tic ne tournent que tant que la page est visible (cycle de vie STARTED).
+    val lifecycleOwner = LocalLifecycleOwner.current
+
     // Tic à la seconde (pour le compte à rebours du rafraîchissement).
     LaunchedEffect(Unit) {
-        while (true) {
-            delay(1_000)
-            tick = System.currentTimeMillis()
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                delay(1_000)
+                tick = System.currentTimeMillis()
+            }
         }
     }
 
@@ -75,26 +87,29 @@ fun DebugScreen(viewModel: AppViewModel) {
                 val nextStr = if (nextAt != null) {
                     val d = nextAt - now
                     val at = fmtTime.format(Date(nextAt))
-                    if (d > 0) "$at (dans ${d / 1000} s)" else at
-                } else "—"
+                    if (d > 0) "$at (${context.getString(R.string.debug_in_seconds, d / 1000)})" else at
+                } else context.getString(R.string.unknown)
                 val speedStr = if (speed != null && speed > 0) {
                     "%.1f m/s".format(speed)
-                } else "—"
-                "$ts  ${a.displayName} | active=${if (a.enabled) "oui" else "non"} | " +
-                        "période=${if (inPeriod) "oui" else "non"} | " +
-                        "dist.entrée=${Format.distanceToEntry(distEntry)} | " +
-                        "vitesse=$speedStr | " +
-                        "prochain=$nextStr"
+                } else context.getString(R.string.unknown)
+                val yn = { b: Boolean -> context.getString(if (b) R.string.yes else R.string.no) }
+                context.getString(
+                    R.string.debug_line,
+                    ts, a.displayName(context), yn(a.enabled), yn(inPeriod),
+                    Format.distanceToEntry(context, distEntry), speedStr, nextStr
+                )
             }
             // Plus récent en tête, plafonné à 300 lignes.
             log = (lines + log).take(300)
             nextRefreshAt = now + 30_000
         }
 
-        appendSnapshot()
-        while (true) {
-            delay(30_000)
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             appendSnapshot()
+            while (true) {
+                delay(30_000)
+                appendSnapshot()
+            }
         }
     }
 
@@ -103,15 +118,15 @@ fun DebugScreen(viewModel: AppViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Debug") },
+                title = { Text(stringResource(R.string.debug_title)) },
                 navigationIcon = {
                     IconButton(onClick = { viewModel.goBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 actions = {
                     IconButton(onClick = { log = emptyList() }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Effacer le journal")
+                        Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.cd_clear_log))
                     }
                 }
             )
@@ -126,13 +141,12 @@ fun DebugScreen(viewModel: AppViewModel) {
         ) {
             item {
                 Text(
-                    "Mise à jour toutes les 30 s · prochain rafraîchissement dans ${remaining} s",
+                    stringResource(R.string.debug_refresh, remaining),
                     style = MaterialTheme.typography.titleSmall
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "« dist.entrée » : distance à l'entrée du périmètre (négatif/« dans la zone » si à l'intérieur). " +
-                            "« prochain » : instant de la prochaine vérification du service (ou — si non planifiée).",
+                    stringResource(R.string.debug_help),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

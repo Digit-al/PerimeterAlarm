@@ -41,10 +41,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import fr.rsgnl.perimetre.R
 import fr.rsgnl.perimetre.data.SoundSettings
+import fr.rsgnl.perimetre.ui.dayNames
 import fr.rsgnl.perimetre.util.RingtoneUtils
+import kotlin.math.roundToInt
 
 /* ------------------------------------------------------------------ */
 /* Observation de la position actuelle                                  */
@@ -114,7 +118,8 @@ fun DaySelector(
     enabled: Boolean,
     onToggle: (dayIso: Int, checked: Boolean) -> Unit
 ) {
-    val names = listOf("Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim")
+    val context = LocalContext.current
+    val names = dayNames(context).toList()
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
@@ -157,14 +162,14 @@ fun RingtonePickerDialog(
     val ringtones = remember { RingtoneUtils.list(context) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Choisir la sonnerie") },
+        title = { Text(stringResource(R.string.sound_choose_ringtone)) },
         text = {
             LazyColumn(
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
                 item {
                     RingtoneRow(
-                        label = "Défaut (système)",
+                        label = stringResource(R.string.sound_default_system),
                         selected = currentUri == null,
                         onClick = { onPick(null); onDismiss() }
                     )
@@ -179,7 +184,7 @@ fun RingtonePickerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Fermer") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
         }
     )
 }
@@ -228,7 +233,7 @@ fun SoundSettingsEditor(
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (showUseDefault) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Utiliser les réglages par défaut", modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.sound_use_default), modifier = Modifier.weight(1f))
                 Switch(
                     checked = settings.useDefault,
                     onCheckedChange = { onChange(settings.copy(useDefault = it)) }
@@ -237,7 +242,7 @@ fun SoundSettingsEditor(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Vibreur", modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.sound_vibration), modifier = Modifier.weight(1f))
             Switch(
                 checked = settings.useVibration,
                 enabled = isEnabled,
@@ -246,7 +251,7 @@ fun SoundSettingsEditor(
         }
 
         Column {
-            Text("Volume : ${"%.0f%%".format(settings.volume * 100)}")
+            Text(stringResource(R.string.sound_volume, (settings.volume * 100).roundToInt()))
             Slider(
                 value = settings.volume,
                 onValueChange = { onChange(settings.copy(volume = it)) },
@@ -257,7 +262,7 @@ fun SoundSettingsEditor(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Sonnerie", modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.sound_ringtone), modifier = Modifier.weight(1f))
             OutlinedButton(onClick = { showPicker = true }, enabled = isEnabled) {
                 Icon(Icons.Filled.VolumeUp, contentDescription = null)
                 Spacer(Modifier.width(6.dp))

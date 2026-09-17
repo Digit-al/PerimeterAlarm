@@ -5,6 +5,7 @@ import android.content.Context
 import android.media.RingtoneManager
 import android.net.Uri
 import android.provider.MediaStore
+import fr.rsgnl.perimetre.R
 
 /** Une sonnerie disponible sur l'appareil. */
 data class RingtoneInfo(val title: String, val uri: Uri)
@@ -32,7 +33,7 @@ object RingtoneUtils {
                 val titleCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
                 while (c.moveToNext()) {
                     val id = c.getLong(idCol)
-                    val title = c.getString(titleCol) ?: "Son"
+                    val title = c.getString(titleCol) ?: context.getString(R.string.sound_unknown_title)
                     val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
                     result.add(RingtoneInfo(title, uri))
                 }
@@ -45,12 +46,12 @@ object RingtoneUtils {
 
     /** Titre lisible d'une sonnerie (ou "Défaut (système)" si null). */
     fun title(context: Context, uri: String?): String {
-        if (uri == null) return "Défaut (système)"
+        if (uri == null) return context.getString(R.string.sound_default_system)
         return try {
             val ringtone = RingtoneManager.getRingtone(context, Uri.parse(uri))
-            ringtone?.getTitle(context) ?: "Personnalisée"
+            ringtone?.getTitle(context) ?: context.getString(R.string.sound_custom)
         } catch (e: Exception) {
-            "Personnalisée"
+            context.getString(R.string.sound_custom)
         }
     }
 }

@@ -78,7 +78,7 @@ class LocationMonitorService : Service() {
         instance = this
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         ensureChannels()
-        val notification = buildMonitorNotification("Surveillance en cours…")
+        val notification = buildMonitorNotification(getString(R.string.notif_monitor_text))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
                 NOTIF_ID_MONITOR,
@@ -319,7 +319,7 @@ class LocationMonitorService : Service() {
             val distCenter = loc?.let { Geo.distanceMeters(it, a.latitude, a.longitude) }
             val distEntry = distCenter?.let { it - a.radiusMeters }
             map[a.id] = AlarmDebugStatus(
-                name = a.displayName,
+                name = a.displayName(this),
                 enabled = a.enabled,
                 inPeriod = inPeriod,
                 distanceCenterM = distCenter,
@@ -337,14 +337,14 @@ class LocationMonitorService : Service() {
     private fun ensureChannels() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val monitor = NotificationChannel(
-            CHANNEL_MONITOR, "Surveillance de position", NotificationManager.IMPORTANCE_LOW
+            CHANNEL_MONITOR, getString(R.string.notif_channel_monitor_name), NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Garde l'application active en arrière-plan"
+            description = getString(R.string.notif_channel_monitor_desc)
         }
         val alarm = NotificationChannel(
-            CHANNEL_ALARM, "Alarmes de périmètre", NotificationManager.IMPORTANCE_HIGH
+            CHANNEL_ALARM, getString(R.string.notif_channel_alarm_name), NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Alarme lorsque vous entrez dans un périmètre"
+            description = getString(R.string.notif_channel_alarm_desc)
             // Son et vibration gérés par AlarmSoundPlayer (réglages personnalisables).
         }
         manager.createNotificationChannel(monitor)
@@ -358,7 +358,7 @@ class LocationMonitorService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         return NotificationCompat.Builder(this, CHANNEL_MONITOR)
-            .setContentTitle("Périmètre Alarme")
+            .setContentTitle(getString(R.string.app_name))
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
@@ -385,13 +385,13 @@ class LocationMonitorService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ALARM)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Périmètre atteint : ${alarm.displayName}")
-            .setContentText("Vous êtes dans la zone de ${alarm.radiusMeters} m")
+            .setContentTitle(getString(R.string.notif_alarm_title, alarm.displayName(this)))
+            .setContentText(getString(R.string.notif_alarm_text, alarm.radiusMeters))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             // Son/vibration émis par AlarmSoundPlayer (pour respecter les réglages).
-            .addAction(NotificationCompat.Action.Builder(null, "Arrêter", pendingDismiss).build())
+            .addAction(NotificationCompat.Action.Builder(null, getString(R.string.notif_alarm_stop), pendingDismiss).build())
             .setContentIntent(pendingOpen)
             .build()
     }
