@@ -8,9 +8,9 @@
 ## Current State (last updated: 2025-07-17)
 
 **Branch**: `main`  
-**Last commit**: `55016c1` — refactor: single GPS fix per check (battery optimization)  
+**Last commit**: `8f57ef6` — fix: disable HomeScreen GPS when no alarm is active in period  
 **Build**: ✅ assembles successfully (debug APK)  
-**User testing**: In progress — user validating the new single-fix GPS behavior.
+**User testing**: In progress — user validating that the blue location dot no longer blinks when no alarm is active.
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -41,6 +41,18 @@
 ## Session Log
 
 ### Session 2025-07-17 (latest)
+
+**Context**: User reported the blue location dot STILL blinking (10s on/off) even with no active alarm, after the single-fix refactor.
+
+**Diagnosis**: The `HomeScreen` had `observeCurrentLocation(enabled = true, intervalMs = 10_000)` which was ALWAYS active regardless of alarm state. This independent location request (separate from the service) was the true cause of the 10s blink pattern.
+
+**Fix**: Changed to `enabled = anyActiveInPeriod` — GPS in the HomeScreen only activates when at least one alarm is both enabled AND within its validity period.
+
+**Commit**: `8f57ef6`
+
+---
+
+### Session 2025-07-17 (single-fix refactor)
 
 **Context**: User reported the blue location dot blinking on/off in a 10s cycle even when next check was 5 min away. Discussed battery implications.
 
