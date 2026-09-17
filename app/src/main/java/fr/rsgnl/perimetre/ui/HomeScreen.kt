@@ -33,6 +33,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,9 +44,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import fr.rsgnl.perimetre.R
 import fr.rsgnl.perimetre.data.Alarm
 import fr.rsgnl.perimetre.ui.components.observeCurrentLocation
@@ -60,15 +64,28 @@ fun HomeScreen(viewModel: AppViewModel) {
     val alarms by viewModel.alarms.collectAsState()
 
     // Position actuelle pour afficher la distance à l'entrée de chaque alarme.
-    // GPS uniquement actif s'il y a au moins une alarme activée ET dans sa période.
+    // GPS actif uniquement si : (1) l'écran est visible (lifecycle STARTED) ET
+    // (2) au moins une alarme est activée et dans sa période.
+    // En arrière-plan, c'est le service de monitoring qui gère le GPS (single fix).
     var currentLoc by remember { mutableStateOf<Location?>(null) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isScreenStarted by remember {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, _ ->
+            isScreenStarted = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val anyActiveInPeriod = alarms.any { a ->
         a.enabled && TimeUtils.isWithinPeriod(
             a.alwaysOn, a.daysOfWeek,
             a.startHour, a.startMinute, a.endHour, a.endMinute
         )
     }
-    observeCurrentLocation(enabled = anyActiveInPeriod, intervalMs = 10_000) { loc ->
+    observeCurrentLocation(enabled = isScreenStarted && anyActiveInPeriod, intervalMs = 10_000) { loc ->
         currentLoc = loc
     }
 
