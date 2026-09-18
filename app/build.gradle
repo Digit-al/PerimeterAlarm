@@ -16,10 +16,20 @@ android {
         archivesBaseName = "PerimeterAlarm"
     }
 
+    signingConfigs {
+        release {
+            storeFile file("../david-release.keystore")
+            storePassword "CHANGE_ME"
+            keyAlias "perimeter_alarm"
+            keyPassword "CHANGE_ME"
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
     compileOptions {
