@@ -1,6 +1,8 @@
 package fr.rsgnl.perimetre.data
 
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -35,11 +37,19 @@ object MonitorStatus {
     private val _statuses = MutableStateFlow<Map<String, AlarmDebugStatus>>(emptyMap())
     val statuses: StateFlow<Map<String, AlarmDebugStatus>> = _statuses.asStateFlow()
 
+    /** Émet l'id d'une alarme ponctuelle qui vient d'être désactivée après déclenchement. */
+    private val _oneShotFired = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val oneShotFired: SharedFlow<String> = _oneShotFired
+
     fun publishAll(map: Map<String, AlarmDebugStatus>) {
         _statuses.value = map
     }
 
     fun clear() {
         _statuses.value = emptyMap()
+    }
+
+    fun notifyOneShotFired(alarmId: String) {
+        _oneShotFired.tryEmit(alarmId)
     }
 }

@@ -80,10 +80,10 @@ fun HomeScreen(viewModel: AppViewModel) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     val anyActiveInPeriod = alarms.any { a ->
-        a.enabled && TimeUtils.isWithinPeriod(
+        a.enabled && (a.oneShot || TimeUtils.isWithinPeriod(
             a.alwaysOn, a.daysOfWeek,
             a.startHour, a.startMinute, a.endHour, a.endMinute
-        )
+        ))
     }
     observeCurrentLocation(enabled = isScreenStarted && anyActiveInPeriod, intervalMs = 10_000) { loc ->
         currentLoc = loc
@@ -151,7 +151,7 @@ fun HomeScreen(viewModel: AppViewModel) {
 @Composable
 fun AlarmRow(alarm: Alarm, viewModel: AppViewModel, currentLoc: Location?) {
     val context = LocalContext.current
-    val inPeriod = TimeUtils.isWithinPeriod(
+    val inPeriod = if (alarm.oneShot) true else TimeUtils.isWithinPeriod(
         alarm.alwaysOn, alarm.daysOfWeek,
         alarm.startHour, alarm.startMinute, alarm.endHour, alarm.endMinute
     )
@@ -214,7 +214,9 @@ fun AlarmRow(alarm: Alarm, viewModel: AppViewModel, currentLoc: Location?) {
 }
 
 fun periodLabel(context: android.content.Context, alarm: Alarm): String {
-    return if (alarm.alwaysOn) {
+    return if (alarm.oneShot) {
+        context.getString(R.string.home_one_shot_label)
+    } else if (alarm.alwaysOn) {
         context.getString(R.string.always_on)
     } else {
         val days = TimeUtils.formatDays(alarm.daysOfWeek, dayNames(context))

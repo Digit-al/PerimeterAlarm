@@ -89,6 +89,7 @@ fun EditorScreen(viewModel: AppViewModel) {
     var lng by remember { mutableStateOf(initial.longitude) }
     var radius by remember { mutableStateOf(initial.radiusMeters) }
     var radiusText by remember { mutableStateOf(initial.radiusMeters.toString()) }
+    var oneShot by remember { mutableStateOf(initial.oneShot) }
     var alwaysOn by remember { mutableStateOf(initial.alwaysOn) }
     var days by remember { mutableStateOf(initial.daysOfWeek) }
     var startH by remember { mutableStateOf(initial.startHour) }
@@ -149,8 +150,9 @@ fun EditorScreen(viewModel: AppViewModel) {
                             latitude = lat,
                             longitude = lng,
                             radiusMeters = radius.coerceIn(RADIUS_MIN, RADIUS_MAX),
-                            alwaysOn = alwaysOn,
-                            daysOfWeek = if (alwaysOn) (1..7).toSet() else days,
+                            oneShot = oneShot,
+                            alwaysOn = if (oneShot) true else alwaysOn,
+                            daysOfWeek = if (oneShot || alwaysOn) (1..7).toSet() else days,
                             startHour = startH,
                             startMinute = startM,
                             endHour = endH,
@@ -277,41 +279,64 @@ fun EditorScreen(viewModel: AppViewModel) {
                 ) {
                     Text(stringResource(R.string.editor_period), style = MaterialTheme.typography.titleMedium)
 
-                    DaySelector(
-                        days = days,
-                        enabled = !alwaysOn,
-                        onToggle = { dayIso, checked ->
-                            // Nouveau set à chaque toggle (Compose détecte le changement de référence).
-                            days = if (checked) days + dayIso else days - dayIso
-                        }
-                    )
-
+                    // Toggle "Ponctuelle" (one-shot)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.editor_always_on), modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.editor_one_shot), modifier = Modifier.weight(1f))
                         Switch(
-                            checked = alwaysOn,
+                            checked = oneShot,
                             onCheckedChange = { value ->
-                                alwaysOn = value
-                                if (value) days = (1..7).toSet()
+                                oneShot = value
+                                if (value) {
+                                    alwaysOn = true
+                                    days = (1..7).toSet()
+                                }
                             }
                         )
                     }
+                    if (oneShot) {
+                        Text(
+                            stringResource(R.string.editor_one_shot_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
-                    if (!alwaysOn) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(onClick = { showStartPicker = true }) {
-                                Icon(Icons.Filled.Schedule, contentDescription = null)
-                                Spacer(Modifier.width(6.dp))
-                                Text(TimeUtils.formatHourMinute(startH, startM))
+                    if (!oneShot) {
+                        DaySelector(
+                            days = days,
+                            enabled = !alwaysOn,
+                            onToggle = { dayIso, checked ->
+                                days = if (checked) days + dayIso else days - dayIso
                             }
-                            Text(stringResource(R.string.editor_time_to))
-                            OutlinedButton(onClick = { showEndPicker = true }) {
-                                Icon(Icons.Filled.Schedule, contentDescription = null)
-                                Spacer(Modifier.width(6.dp))
-                                Text(TimeUtils.formatHourMinute(endH, endM))
+                        )
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.editor_always_on), modifier = Modifier.weight(1f))
+                            Switch(
+                                checked = alwaysOn,
+                                onCheckedChange = { value ->
+                                    alwaysOn = value
+                                    if (value) days = (1..7).toSet()
+                                }
+                            )
+                        }
+
+                        if (!alwaysOn) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(onClick = { showStartPicker = true }) {
+                                    Icon(Icons.Filled.Schedule, contentDescription = null)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(TimeUtils.formatHourMinute(startH, startM))
+                                }
+                                Text(stringResource(R.string.editor_time_to))
+                                OutlinedButton(onClick = { showEndPicker = true }) {
+                                    Icon(Icons.Filled.Schedule, contentDescription = null)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(TimeUtils.formatHourMinute(endH, endM))
+                                }
                             }
                         }
                     }

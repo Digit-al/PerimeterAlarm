@@ -62,6 +62,9 @@
     <string name="editor_radius_hint">Slider, value and the circle on the map are synchronized in real time.</string>
     <string name="editor_period">Validity period</string>
     <string name="editor_always_on">Always on (24/7)</string>
+    <string name="editor_one_shot">One-time</string>
+    <string name="editor_one_shot_hint">Manually activated — deactivates automatically after the first trigger.</string>
+    <string name="home_one_shot_label">One-time</string>
     <string name="editor_time_to">to</string>
     <string name="editor_sound">Ringtone &amp; vibration</string>
     <string name="editor_enabled">Alarm enabled</string>

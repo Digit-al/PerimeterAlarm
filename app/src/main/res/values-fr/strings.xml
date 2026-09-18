@@ -62,6 +62,9 @@
     <string name="editor_radius_hint">Slider, valeur et cercle sur la carte sont synchronisés en temps réel.</string>
     <string name="editor_period">Période de validité</string>
     <string name="editor_always_on">Toujours active (24h/24, 7j/7)</string>
+    <string name="editor_one_shot">Ponctuelle</string>
+    <string name="editor_one_shot_hint">Activée manuellement — se désactive automatiquement après le premier déclenchement.</string>
+    <string name="home_one_shot_label">Ponctuelle</string>
     <string name="editor_time_to">à</string>
     <string name="editor_sound">Sonnerie &amp; vibration</string>
     <string name="editor_enabled">Alarme activée</string>

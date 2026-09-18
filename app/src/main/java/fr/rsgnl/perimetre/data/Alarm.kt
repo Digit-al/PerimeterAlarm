@@ -26,8 +26,10 @@ data class SoundSettings(
 /**
  * Une alarme de périmètre.
  *
+ * @param oneShot Alarme ponctuelle : activée manuellement, se désactive automatiquement
+ *                après le premier déclenchement. Les jours/heures sont ignorés.
  * @param daysOfWeek Jours de la semaine où l'alarme est valide, encodés en ISO (1 = lundi … 7 = dimanche).
- *                   Ignoré si [alwaysOn] est vrai.
+ *                   Ignoré si [alwaysOn] est vrai ou si [oneShot] est vrai.
  * @param sound Réglages sonores spécifiques à cette alarme (ou usage du défaut applicatif).
  */
 data class Alarm(
@@ -36,6 +38,7 @@ data class Alarm(
     var latitude: Double = 48.8566,
     var longitude: Double = 2.3522,
     var radiusMeters: Int = 200,
+    var oneShot: Boolean = false,
     var alwaysOn: Boolean = false,
     var daysOfWeek: Set<Int> = (1..7).toSet(),
     var startHour: Int = 8,

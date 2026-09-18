@@ -189,11 +189,9 @@ class LocationMonitorService : Service() {
             val maxMs = maxSec.toLong() * 1000L
 
             // Alarmes activées ET dans leur période de validité.
+            // Une alarme one-shot activée est toujours « in period ».
             val activeInPeriod = alarms.filter { a ->
-                a.enabled && TimeUtils.isWithinPeriod(
-                    a.alwaysOn, a.daysOfWeek,
-                    a.startHour, a.startMinute, a.endHour, a.endMinute
-                )
+                a.enabled && isAlarmInPeriod(a)
             }
 
             publishStatuses(alarms)
@@ -285,6 +283,10 @@ class LocationMonitorService : Service() {
                 if (!tracker.triggered) {
                     tracker.triggered = true
                     triggerAlarm(alarm)
+                    // Alarme ponctuelle : se désactive après le premier déclenchement.
+                    if (alarm.oneShot) {
+                        deactivateOneShot(alarm.id)
+                    }
                 }
             } else if (tracker.triggered && distance > alarm.radiusMeters * 1.15) {
                 tracker.triggered = false
@@ -294,6 +296,29 @@ class LocationMonitorService : Service() {
             tracker.lastCheckMs = now
             tracker.nextIntervalMs = if (first) minMs else maxMs
         }
+    }
+
+    /**
+     * Désactive une alarme ponctuelle après son déclenchement : sauvegarde + notification UI.
+     */
+    private fun deactivateOneShot(alarmId: String) {
+        val alarms = repository.loadAlarms()
+        val updated = alarms.map { if (it.id == alarmId) it.copy(enabled = false) else it }
+        repository.saveAlarms(updated)
+        MonitorStatus.notifyOneShotFired(alarmId)
+        // Si plus aucune alarme activée, on peut arrêter le service.
+        if (updated.none { it.enabled }) {
+            mainHandler.postDelayed({ stop(this) }, 30_000L) // délai pour laisser l'alarme sonner
+        }
+    }
+
+    /** Une alarme est « in period » si : one-shot activée OU période de validité normale. */
+    private fun isAlarmInPeriod(a: Alarm): Boolean {
+        if (a.oneShot) return true
+        return TimeUtils.isWithinPeriod(
+            a.alwaysOn, a.daysOfWeek,
+            a.startHour, a.startMinute, a.endHour, a.endMinute
+        )
     }
 
     private fun computeInterval(tracker: Tracker, minMs: Long, maxMs: Long): Long {
@@ -327,10 +352,7 @@ class LocationMonitorService : Service() {
         val map = HashMap<String, AlarmDebugStatus>()
         for (a in alarms) {
             val t = trackers[a.id]
-            val inPeriod = TimeUtils.isWithinPeriod(
-                a.alwaysOn, a.daysOfWeek,
-                a.startHour, a.startMinute, a.endHour, a.endMinute
-            )
+            val inPeriod = isAlarmInPeriod(a)
             val distCenter = loc?.let { Geo.distanceMeters(it, a.latitude, a.longitude) }
             val distEntry = distCenter?.let { it - a.radiusMeters }
             map[a.id] = AlarmDebugStatus(

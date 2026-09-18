@@ -8,10 +8,13 @@ import fr.rsgnl.perimetre.data.Alarm
 import fr.rsgnl.perimetre.data.AlarmRepository
 import fr.rsgnl.perimetre.data.AppSettings
 import fr.rsgnl.perimetre.data.AppLanguage
+import fr.rsgnl.perimetre.data.MonitorStatus
 import fr.rsgnl.perimetre.service.LocationMonitorService
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /** Écrans de l'application. */
 sealed class Screen {
@@ -43,6 +46,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         refreshService()
+        // Réagit quand une alarme ponctuelle est désactivée par le service après déclenchement.
+        viewModelScope.launch {
+            MonitorStatus.oneShotFired.collect { alarmId ->
+                val list = _alarms.value.map { if (it.id == alarmId) it.copy(enabled = false) else it }
+                _alarms.value = list
+            }
+        }
     }
 
     // ---- Navigation ----
