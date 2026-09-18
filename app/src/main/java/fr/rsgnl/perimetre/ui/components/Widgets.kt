@@ -227,12 +227,15 @@ private fun RingtoneRow(label: String, selected: Boolean, onClick: () -> Unit) {
  * Éditeur des réglages sonores : vibreur, volume, sonnerie.
  *
  * @param showUseDefault Affiche (alarme uniquement) le toggle "utiliser les réglages par défaut".
+ * @param appDefaultRingtoneUri La sonnerie par défaut de l'application (pour affichage
+ *   quand useDefault = true : montre quelle sonnerie sera réellement utilisée).
  */
 @Composable
 fun SoundSettingsEditor(
     settings: SoundSettings,
     onChange: (SoundSettings) -> Unit,
     showUseDefault: Boolean = false,
+    appDefaultRingtoneUri: String? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -276,10 +279,16 @@ fun SoundSettingsEditor(
                 Icon(Icons.Filled.VolumeUp, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = RingtoneUtils.title(context, settings.ringtoneUri),
+                    text = if (showUseDefault && settings.useDefault) {
+                        // Affiche la sonnerie par défaut de l'application (celle qui sera réellement jouée).
+                        val title = RingtoneUtils.title(context, appDefaultRingtoneUri)
+                        "${stringResource(R.string.sound_default_app_prefix)} $title"
+                    } else {
+                        RingtoneUtils.title(context, settings.ringtoneUri)
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 160.dp)
+                    modifier = Modifier.widthIn(max = 180.dp)
                 )
             }
         }

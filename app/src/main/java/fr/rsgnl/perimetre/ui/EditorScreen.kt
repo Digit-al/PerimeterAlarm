@@ -70,6 +70,7 @@ private const val RADIUS_MAX = 5000
 fun EditorScreen(viewModel: AppViewModel) {
     val context = LocalContext.current
     val editingId by viewModel.editingId.collectAsState()
+    val appSettings by viewModel.settings.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -353,7 +354,8 @@ fun EditorScreen(viewModel: AppViewModel) {
                     SoundSettingsEditor(
                         settings = draftSound,
                         onChange = { draftSound = it },
-                        showUseDefault = true
+                        showUseDefault = true,
+                        appDefaultRingtoneUri = appSettings.defaultSound.ringtoneUri
                     )
                 }
             }
