@@ -7,7 +7,7 @@
 
 ## 1. Overview
 
-Build an Android app that **triggers an alarm (sound + vibration + notification) when the user enters a circular perimeter** around a location they have defined. Multiple alarms can be defined, each with its own location, radius, validity period (days + time range, always-on, or **one-time/ponctuelle**), and sound settings. One-time alarms are manually activated and automatically deactivate after the first trigger.
+Build an Android app that **triggers an alarm (sound + vibration + notification) when the user enters a circular perimeter** around a location they have defined. Multiple alarms can be defined, each with its own location, radius, validity period (days + time range, always-on, or **one-time**), and sound settings. One-time alarms are manually activated and automatically deactivate after the first trigger.
 
 The app must work reliably in the background with minimal battery consumption.
 
