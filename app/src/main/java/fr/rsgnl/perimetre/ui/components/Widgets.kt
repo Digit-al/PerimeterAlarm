@@ -23,16 +23,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
@@ -280,7 +283,6 @@ fun SoundSettingsEditor(
                 Spacer(Modifier.width(6.dp))
                 Text(
                     text = if (showUseDefault && settings.useDefault) {
-                        // Affiche la sonnerie par défaut de l'application (celle qui sera réellement jouée).
                         val title = RingtoneUtils.title(context, appDefaultRingtoneUri)
                         "${stringResource(R.string.sound_default_app_prefix)} $title"
                     } else {
@@ -288,8 +290,21 @@ fun SoundSettingsEditor(
                     },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 180.dp)
+                    modifier = Modifier.widthIn(max = 140.dp)
                 )
+            }
+            // Bouton réinitialiser : visible uniquement si une sonnerie a été choisie.
+            if (settings.ringtoneUri != null && isEnabled) {
+                IconButton(
+                    onClick = { onChange(settings.copy(ringtoneUri = null)) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.sound_reset_ringtone),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

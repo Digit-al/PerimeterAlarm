@@ -79,6 +79,7 @@
     <string name="sound_choose_ringtone">Choisir la sonnerie</string>
     <string name="sound_default_system">Défaut (système)</string>
     <string name="sound_default_app_prefix">Défaut app :</string>
+    <string name="sound_reset_ringtone">Réinitialiser au défaut système</string>
     <string name="sound_no_permission_hint">Aucune sonnerie trouvée. Accordez l\u2019accès aux médias pour voir la liste complète.</string>
     <string name="sound_grant_permission">Accorder la permission</string>
     <string name="sound_empty_list">Aucune sonnerie d\u2019alarme trouvée sur cet appareil.</string>

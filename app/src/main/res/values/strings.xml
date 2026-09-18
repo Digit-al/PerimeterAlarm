@@ -79,6 +79,7 @@
     <string name="sound_choose_ringtone">Choose ringtone</string>
     <string name="sound_default_system">Default (system)</string>
     <string name="sound_default_app_prefix">App default:</string>
+    <string name="sound_reset_ringtone">Reset to system default</string>
     <string name="sound_no_permission_hint">No ringtones found. Grant media access to see the full list.</string>
     <string name="sound_grant_permission">Grant permission</string>
     <string name="sound_empty_list">No alarm ringtones found on this device.</string>
