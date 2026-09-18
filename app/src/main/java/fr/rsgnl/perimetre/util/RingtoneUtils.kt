@@ -34,35 +34,55 @@ object RingtoneUtils {
 
     fun list(context: Context): List<RingtoneInfo> {
         val result = mutableListOf<RingtoneInfo>()
+        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE)
+
+        // Passe 1 : filtre alarme/sonnerie/notification.
         try {
-            val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE)
-            val selection = "is_alarm=1 OR is_ringtone=1 OR is_notification=1"
             val cursor = context.contentResolver.query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 projection,
-                selection,
+                "is_alarm=1 OR is_ringtone=1 OR is_notification=1",
                 null,
                 "${MediaStore.Audio.Media.TITLE} ASC"
             )
-            if (cursor == null) {
-                Log.w(TAG, "MediaStore cursor is null — permission missing? hasPermission=${hasPermission(context)}")
-                return result
-            }
-            cursor.use { c ->
-                val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-                val titleCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-                while (c.moveToNext()) {
-                    val id = c.getLong(idCol)
-                    val title = c.getString(titleCol) ?: context.getString(R.string.sound_unknown_title)
-                    val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
-                    result.add(RingtoneInfo(title, uri))
-                }
-            }
-            Log.i(TAG, "Listed ${result.size} ringtones")
+            readCursor(cursor, result)
         } catch (e: Exception) {
-            Log.w(TAG, "MediaStore query failed: ${e.message}", e)
+            Log.w(TAG, "Filtered query failed: ${e.message}", e)
         }
+
+        // Passe 2 (fallback) : tous les fichiers audio si le filtre n'a rien retourné.
+        if (result.isEmpty()) {
+            Log.i(TAG, "Filtered query empty, trying unfiltered…")
+            try {
+                val cursor = context.contentResolver.query(
+                    MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                    projection,
+                    null,
+                    null,
+                    "${MediaStore.Audio.Media.TITLE} ASC LIMIT 200"
+                )
+                readCursor(cursor, result)
+            } catch (e: Exception) {
+                Log.w(TAG, "Unfiltered query failed: ${e.message}", e)
+            }
+        }
+
+        Log.i(TAG, "Final list size: ${result.size}")
         return result
+    }
+
+    private fun readCursor(cursor: android.database.Cursor?, into: MutableList<RingtoneInfo>) {
+        if (cursor == null) return
+        cursor.use { c ->
+            val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+            val titleCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+            while (c.moveToNext()) {
+                val id = c.getLong(idCol)
+                val title = c.getString(titleCol) ?: "Audio $id"
+                val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
+                into.add(RingtoneInfo(title, uri))
+            }
+        }
     }
 
     /** Titre lisible d'une sonnerie (ou "Défaut (système)" si null). */
