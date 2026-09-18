@@ -58,6 +58,7 @@ data class Alarm(
     var latitude: Double = 48.8566,
     var longitude: Double = 2.3522,
     var radiusMeters: Int = 200,
+    var oneShot: Boolean = false,       // "Ponctuelle": manual activation, auto-deactivates after 1st trigger
     var alwaysOn: Boolean = false,
     var daysOfWeek: Set<Int> = (1..7).toSet(),  // ISO: 1=Mon..7=Sun
     var startHour: Int = 8,
@@ -165,17 +166,19 @@ Single-activity app with a `sealed class Screen` (Home, Editor, Settings, Debug)
 
 ### Home Screen
 - `LazyColumn` of alarms.
-- Each row: green/gray dot (active + in-period), name, coordinates + radius, period label, **distance to entry** (live, for active alarms), edit button, enable switch.
+- Each row: green/gray dot (active + in-period), name, coordinates + radius, period label (includes "Ponctuelle" when one-shot), **distance to entry** (live, for active alarms), edit button, enable switch.
 - FAB: add new alarm.
 - Top bar: debug button (🐞), settings button (⚙️).
-- Uses `observeCurrentLocation` (10s interval) to display live distances.
+- Uses `observeCurrentLocation` (lifecycle-aware: only when screen ≥ STARTED AND at least one alarm is active + in-period) to display live distances.
 
 ### Editor Screen
 - Name field.
 - **Map** (osmdroid, 280dp height): marker at alarm location, blue polygon circle for radius, blue dot for current position. Tap to move location. "My location" and "Recenter" buttons.
 - **Perimeter**: slider (10m–5km) + text field for exact radius, synced in real time.
-- **Period**: day-of-week checkboxes (Mon–Sun), start/end time pickers, "Always on" toggle.
-- **Sound**: use-default toggle, vibration toggle, volume slider, ringtone picker.
+- **One-time (Ponctuelle)** toggle: when active, shows a simple "Manually activate" message instead of days/times. Alarm auto-deactivates after first trigger.
+- **Period**: day-of-week checkboxes (Mon–Sun), start/end time pickers, "Always on" toggle. Hidden when one-shot is active.
+- **Sound**: use-default toggle, vibration toggle, volume slider, ringtone picker (system `ACTION_RINGTONE_PICKER`), reset button (× to revert to system default).
+  - When `useDefault=true`, the ringtone button displays "Défaut app : <ringtone title>" (the app-level default ringtone that will actually be played).
 - **Enable** toggle.
 - Save / Delete buttons in bottom bar.
 - `TimePickerDialog` for start/end times.
@@ -225,6 +228,8 @@ Single-activity app with a `sealed class Screen` (Home, Editor, Settings, Debug)
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+<uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 <uses-permission android:name="android.permission.VIBRATE" />
@@ -243,7 +248,7 @@ Requested at runtime on first launch via `ActivityResultContracts.RequestMultipl
 - **`TimeUtils`**: `isWithinPeriod()` (handles midnight-crossing), `nextPeriodStart()` (scans 8 days ahead), `formatHourMinute()`, `formatDays()`.
 - **`AlarmSoundPlayer`**: manages `MediaPlayer` (per-alarm, looping, volume) and `Vibrator` (per-alarm, waveform pattern). Indexes by alarm ID for individual stop.
 - **`LocationUtils`**: `lastKnownLocation()` — checks GPS, network, passive providers, returns the most recent.
-- **`RingtoneUtils`**: lists available alarm tones on the device.
+- **`RingtoneUtils`**: `title(context, uri)` — returns the display name for a ringtone URI, or localized "Default (system)" if null. Also `hasMediaAudioPermission(context)` to check `READ_MEDIA_AUDIO` (API 33+) / `READ_EXTERNAL_STORAGE`.
 - **`Format`**: distance formatting (m/km with appropriate precision).
 
 ---
@@ -329,6 +334,14 @@ app/src/main/java/fr/rsgnl/perimetre/
 9. **Doze mode**: For very long sleeps (hours/days), Android Doze may delay the wake. Acceptable for now; WorkManager/AlarmManager would be the next evolution.
 
 10. **Foreground service type**: `FOREGROUND_SERVICE_TYPE_LOCATION` required on Android 10+ to declare location usage and show the system location indicator.
+
+11. **One-shot alarms**: `oneShot=true` makes the alarm always "in period" (no day/time filter). After the first trigger, `enabled` is set to `false` and a `SharedFlow<String>` (`oneShotFired`) is emitted so the UI can show a snackbar and update the list in real-time.
+
+12. **Ringtone picker**: uses `RingtoneManager.ACTION_RINGTONE_PICKER` (system intent) instead of a custom MediaStore list. On Android 14+/17, system ringtones live in a dedicated provider not exposed via `MediaStore.Audio.Media`. The system intent handles all versions + no permission required. `READ_MEDIA_AUDIO` is still in the manifest as a safety net.
+
+13. **StateFlow + data classes**: when mutating an `Alarm` (e.g., toggling enabled), always use `copy()` to produce a new reference. In-place mutation won't trigger StateFlow emission because `equals()` sees the same reference.
+
+14. **App default ringtone display**: in the alarm editor, when `useDefault=true`, the ringtone button shows "Défaut app : <title>" (the actual app-level ringtone name) instead of "Défaut (système)". This requires passing `appSettings.defaultSound.ringtoneUri` to the `SoundSettingsEditor` component.
 
 ---
 
