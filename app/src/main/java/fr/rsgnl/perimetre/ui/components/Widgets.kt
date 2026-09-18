@@ -1,13 +1,19 @@
 package fr.rsgnl.perimetre.ui.components
 
+import android.app.Activity
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.media.RingtoneManager
+import android.net.Uri
+import android.os.Build
 import android.os.Looper
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -153,6 +159,9 @@ fun DaySelector(
 /**
  * Dialogue listant les sonneries "alarme/sonnerie" de l'appareil + le défaut système.
  * [onPick] reçoit l'uri choisie, ou null pour le défaut système.
+ *
+ * Utilise l'Intent système officiel ACTION_RINGTONE_PICKER qui affiche
+ * toutes les sonneries (collections système, personnalisées) sans permission.
  */
 @Composable
 fun RingtonePickerDialog(
@@ -160,66 +169,33 @@ fun RingtonePickerDialog(
     onPick: (uri: String?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
-    // Recharger la liste à chaque ouverture (le composant est conditionnel → recreate).
-    var ringtones by remember { mutableStateOf(RingtoneUtils.list(context)) }
-    val hasPerm = RingtoneUtils.hasPermission(context)
-
-    // Launcher pour demander la permission depuis le dialog.
     val launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) ringtones = RingtoneUtils.list(context)
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.sound_choose_ringtone)) },
-        text = {
-            Column {
-                if (ringtones.isEmpty() && !hasPerm) {
-                    Text(
-                        stringResource(R.string.sound_no_permission_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(onClick = {
-                        launcher.launch(RingtoneUtils.requiredPermission())
-                    }) {
-                        Text(stringResource(R.string.sound_grant_permission))
-                    }
-                } else if (ringtones.isEmpty()) {
-                    Text(
-                        stringResource(R.string.sound_empty_list),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                LazyColumn(
-                    contentPadding = PaddingValues(vertical = 4.dp)
-                ) {
-                    item {
-                        RingtoneRow(
-                            label = stringResource(R.string.sound_default_system),
-                            selected = currentUri == null,
-                            onClick = { onPick(null); onDismiss() }
-                        )
-                    }
-                    items(ringtones, key = { it.uri.toString() }) { rt ->
-                        RingtoneRow(
-                            label = rt.title,
-                            selected = currentUri == rt.uri.toString(),
-                            onClick = { onPick(rt.uri.toString()); onDismiss() }
-                        )
-                    }
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uri: Uri? = result.data?.let { data ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+            onPick(uri?.toString())
         }
-    )
+        onDismiss()
+    }
+
+    // Lance le picker système dès que le composant est composé.
+    LaunchedEffect(Unit) {
+        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
+            currentUri?.let { putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(it)) }
+        }
+        launcher.launch(intent)
+    }
 }
 
 @Composable
