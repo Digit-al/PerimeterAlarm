@@ -1,10 +1,15 @@
 package fr.rsgnl.perimetre.util
 
+import android.Manifest
 import android.content.ContentUris
 import android.content.Context
+import android.content.pm.PackageManager
 import android.media.RingtoneManager
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
+import android.util.Log
+import androidx.core.content.ContextCompat
 import fr.rsgnl.perimetre.R
 
 /** Une sonnerie disponible sur l'appareil. */
@@ -15,12 +20,23 @@ data class RingtoneInfo(val title: String, val uri: Uri)
  */
 object RingtoneUtils {
 
+    private const val TAG = "RingtoneUtils"
+
+    /** Permission audio requise selon la version Android. */
+    fun requiredPermission(): String =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+            Manifest.permission.READ_MEDIA_AUDIO
+        else
+            Manifest.permission.READ_EXTERNAL_STORAGE
+
+    fun hasPermission(context: Context): Boolean =
+        ContextCompat.checkSelfPermission(context, requiredPermission()) == PackageManager.PERMISSION_GRANTED
+
     fun list(context: Context): List<RingtoneInfo> {
         val result = mutableListOf<RingtoneInfo>()
         try {
             val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE)
-            // Colonnes en littéral pour rester compatible avec toutes les versions.
-            val selection = "is_alarm=1 OR is_ringtone=1"
+            val selection = "is_alarm=1 OR is_ringtone=1 OR is_notification=1"
             val cursor = context.contentResolver.query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 projection,
@@ -28,7 +44,11 @@ object RingtoneUtils {
                 null,
                 "${MediaStore.Audio.Media.TITLE} ASC"
             )
-            cursor?.use { c ->
+            if (cursor == null) {
+                Log.w(TAG, "MediaStore cursor is null — permission missing? hasPermission=${hasPermission(context)}")
+                return result
+            }
+            cursor.use { c ->
                 val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
                 val titleCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
                 while (c.moveToNext()) {
@@ -38,8 +58,9 @@ object RingtoneUtils {
                     result.add(RingtoneInfo(title, uri))
                 }
             }
-        } catch (ignored: Exception) {
-            // Colonne absente (anciennes versions) ou autre : liste vide.
+            Log.i(TAG, "Listed ${result.size} ringtones")
+        } catch (e: Exception) {
+            Log.w(TAG, "MediaStore query failed: ${e.message}", e)
         }
         return result
     }

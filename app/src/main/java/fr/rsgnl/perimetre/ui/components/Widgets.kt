@@ -6,6 +6,8 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Looper
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -159,27 +161,58 @@ fun RingtonePickerDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val ringtones = remember { RingtoneUtils.list(context) }
+    // Recharger la liste à chaque ouverture (le composant est conditionnel → recreate).
+    var ringtones by remember { mutableStateOf(RingtoneUtils.list(context)) }
+    val hasPerm = RingtoneUtils.hasPermission(context)
+
+    // Launcher pour demander la permission depuis le dialog.
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) ringtones = RingtoneUtils.list(context)
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.sound_choose_ringtone)) },
         text = {
-            LazyColumn(
-                contentPadding = PaddingValues(vertical = 4.dp)
-            ) {
-                item {
-                    RingtoneRow(
-                        label = stringResource(R.string.sound_default_system),
-                        selected = currentUri == null,
-                        onClick = { onPick(null); onDismiss() }
+            Column {
+                if (ringtones.isEmpty() && !hasPerm) {
+                    Text(
+                        stringResource(R.string.sound_no_permission_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = {
+                        launcher.launch(RingtoneUtils.requiredPermission())
+                    }) {
+                        Text(stringResource(R.string.sound_grant_permission))
+                    }
+                } else if (ringtones.isEmpty()) {
+                    Text(
+                        stringResource(R.string.sound_empty_list),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                items(ringtones, key = { it.uri.toString() }) { rt ->
-                    RingtoneRow(
-                        label = rt.title,
-                        selected = currentUri == rt.uri.toString(),
-                        onClick = { onPick(rt.uri.toString()); onDismiss() }
-                    )
+                LazyColumn(
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    item {
+                        RingtoneRow(
+                            label = stringResource(R.string.sound_default_system),
+                            selected = currentUri == null,
+                            onClick = { onPick(null); onDismiss() }
+                        )
+                    }
+                    items(ringtones, key = { it.uri.toString() }) { rt ->
+                        RingtoneRow(
+                            label = rt.title,
+                            selected = currentUri == rt.uri.toString(),
+                            onClick = { onPick(rt.uri.toString()); onDismiss() }
+                        )
+                    }
                 }
             }
         },
