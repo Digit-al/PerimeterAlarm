@@ -35,13 +35,16 @@ Une alarme se compose de :
    - Modifier l'un des trois met à jour instantanément les deux autres.
 
 3. **Période de validité** :
+   - **toggle « Ponctuelle »** — l'alarme est activée manuellement et se désactive automatiquement après le premier déclenchement (pas de période récurrente),
    - des **cases à cocher** pour chaque **jour de la semaine** (Lun → Dim),
    - **heure de début** et **heure de fin** (sélecteurs d'heure, gère les périodes qui traversent minuit),
    - ou un simple **toggle « Toujours active »** (24 h/24, 7 j/7).
+   - Les jours et heures sont masqués quand « Ponctuelle » est sélectionnée.
 
 4. **Sonnerie & vibration** (spécifique à l'alarme) :
    - toggle « utiliser les réglages par défaut » (sinon réglages personnalisés),
-   - **vibreur** (on/off), **volume** (slider 0–100 %), **sonnerie** (choix parmi les sons d'alarme de l'appareil, ou défaut système).
+   - **vibreur** (on/off), **volume** (slider 0–100 %), **sonnerie** (sélecteur système — affiche toutes les sonneries disponibles, ou défaut système).
+   - Un **bouton ×** réinitialise la sonnerie au défaut système.
 
 ### Logique de vérification dynamique
 Lorsqu'une alarme est **activée** et **dans sa période de validité**, la position est vérifiée à des intervalles dynamiques :
@@ -108,7 +111,7 @@ app/src/main/java/fr/rsgnl/perimetre/
 
 ### Service de surveillance
 `LocationMonitorService` est un **foreground service** (type `location`) qui :
-1. s'abonne au GPS/réseau (mise à jour toutes les 5 s),
+1. demande un **fix GPS unique** à chaque vérification (GPS allumé ~5-15 s par cycle → batterie minimale),
 2. pour chaque alarme active et dans sa période, maintient un **état** (dernière distance, vitesse, prochain intervalle, état déclenché),
 3. planifie la prochaine vérification via la formule dynamique ci-dessus,
 4. déclenche l'alarme à l'entrée dans le périmètre.
@@ -147,6 +150,7 @@ echo "sdk.dir=/chemin/vers/le/android-sdk" > local.properties
 ### Permissions demandées
 - `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` — position
 - `POST_NOTIFICATIONS` (Android 13+) — notifications d'alarme
+- `READ_MEDIA_AUDIO` (Android 13+) / `READ_EXTERNAL_STORAGE` (< 13) — audio (pour la liste des sonneries ; le sélecteur système lui-même n'en a pas besoin)
 - `FOREGROUND_SERVICE(_LOCATION)` — service de surveillance
 - `VIBRATE`, `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`, `INTERNET`
 

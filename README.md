@@ -35,13 +35,16 @@ An alarm consists of:
    - Changing any of the three instantly updates the other two.
 
 3. **Validity period**:
+   - **"One-time"** toggle — the alarm is manually activated and deactivates automatically after the first trigger (no recurring period),
    - **checkboxes** for each **day of the week** (Mon → Sun),
    - a **start time** and an **end time** (time pickers, handles periods crossing midnight),
    - or a simple **"Always on"** toggle (24/7).
+   - Days and times are hidden when "One-time" is selected.
 
 4. **Ringtone & vibration** (specific to the alarm):
    - "use default settings" toggle (otherwise custom settings),
-   - **vibration** (on/off), **volume** (0–100 % slider), **ringtone** (choose from the device's alarm tones, or the system default).
+   - **vibration** (on/off), **volume** (0–100 % slider), **ringtone** (system ringtone picker — shows all available alarm tones, or the system default).
+   - A **× button** resets the ringtone back to the system default.
 
 ### Dynamic check logic
 When an alarm is **enabled** and **within its validity period**, the position is checked at dynamic intervals:
@@ -108,7 +111,7 @@ app/src/main/java/fr/rsgnl/perimetre/
 
 ### Monitoring service
 `LocationMonitorService` is a **foreground service** (type `location`) that:
-1. requests a **single GPS fix** at each check (GPS only on ~5-15 s per cycle → minimal battery),
+1. requests a **single GPS fix** at each check (GPS only on for ~5-15 s per cycle → minimal battery),
 2. for each active and in-period alarm, keeps a **state** (last distance, speed, next interval, triggered state),
 3. schedules the next check with the dynamic formula above,
 4. triggers the alarm when entering the perimeter.
@@ -149,6 +152,7 @@ echo "sdk.dir=/path/to/the/android-sdk" > local.properties
 ### Permissions requested
 - `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` — location
 - `POST_NOTIFICATIONS` (Android 13+) — alarm notifications
+- `READ_MEDIA_AUDIO` (Android 13+) / `READ_EXTERNAL_STORAGE` (< 13) — audio (for ringtone listing; the system picker itself doesn't need this)
 - `FOREGROUND_SERVICE(_LOCATION)` — monitoring service
 - `VIBRATE`, `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`, `INTERNET`
 
