@@ -135,6 +135,17 @@ while (true) {
 }
 ```
 
+### Doze-Resistant Wake (long sleeps)
+
+When the loop must sleep for a long time (no active alarm in period — hours/days until the next period start), a plain coroutine delay can be delayed if the device enters Android **Doze**. To make these wakes reliable:
+
+- If the computed sleep exceeds **10 minutes** (`LONG_SLEEP_THRESHOLD_MS`), the service schedules a broadcast alarm with **`AlarmManager.setAlarmClock`** (API 23+): exact, **fires during Doze**, and shows a **clock icon in the status bar** while pending — with **no extra permission** (unlike `setExactAndAllowWhileIdle`, which requires `SCHEDULE_EXACT_ALARM` on API 31+).
+- A static receiver (`WakeReceiver`, manifest-registered for `ACTION_WAKE`) handles the broadcast:
+  - service still running → `requestWake()` interrupts the loop's sleep via the wake `Channel`;
+  - process killed → restarts the service if at least one alarm is enabled (same logic as the boot receiver).
+- The loop re-evaluates after every wake: if it must still sleep, it reschedules on the recomputed target (self-correcting if a wake was delayed).
+- The pending alarm is cancelled when active monitoring resumes, when the service is destroyed, and on service start (a `PendingIntent` survives process death).
+
 ### Tracker State (per alarm, in-memory only)
 
 ```kotlin
@@ -304,7 +315,8 @@ app/src/main/java/fr/rsgnl/perimetre/
 │       └── Widgets.kt        # observeCurrentLocation, DaySelector, SoundSettingsEditor
 ├── service/
 │   ├── LocationMonitorService.kt
-│   └── BootReceiver.kt
+│   ├── BootReceiver.kt
+│   └── WakeReceiver.kt
 └── util/
     ├── Geo.kt
     ├── TimeUtils.kt
@@ -344,7 +356,7 @@ app/src/main/java/fr/rsgnl/perimetre/
 
 8. **First check**: The first check for each alarm always uses the minimum interval (30s by default) since there's no speed estimate yet.
 
-9. **Doze mode**: For very long sleeps (hours/days), Android Doze may delay the wake. Acceptable for now; WorkManager/AlarmManager would be the next evolution.
+9. **Doze mode**: Long sleeps (hours/days, no active alarm) are backed by an `AlarmManager.setAlarmClock` broadcast alarm — exact, fires during Doze, status-bar clock icon, **no extra permission** (chosen over `setExactAndAllowWhileIdle` to avoid the `SCHEDULE_EXACT_ALARM` flow on API 31+ / targetSdk 34). `WakeReceiver` wakes the loop via `requestWake()`, or restarts the service if the process was killed. Only applies when the computed sleep exceeds 10 minutes.
 
 10. **Foreground service type**: `FOREGROUND_SERVICE_TYPE_LOCATION` required on Android 10+ to declare location usage and show the system location indicator.
 

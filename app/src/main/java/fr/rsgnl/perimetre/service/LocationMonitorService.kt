@@ -1,5 +1,6 @@
 package fr.rsgnl.perimetre.service
 
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -62,11 +63,24 @@ class LocationMonitorService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val wakeChannel = Channel<Unit>(Channel.BUFFERED)
 
+    /** PendingIntent réutilisable pour l'alarme de réveil longue durée (setAlarmClock). */
+    private val wakeAlarmPending by lazy {
+        PendingIntent.getBroadcast(
+            this,
+            WAKE_REQUEST_CODE,
+            Intent(this, WakeReceiver::class.java).setAction(ACTION_WAKE),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
     override fun onCreate() {
         super.onCreate()
         instance = this
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         ensureChannels()
+        // Annule une éventuelle alarme de réveil laissée par une exécution précédente
+        // (un PendingIntent survit à la mort du processus).
+        cancelWakeAlarm()
         val notification = buildMonitorNotification(getString(R.string.notif_monitor_text))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
@@ -102,6 +116,7 @@ class LocationMonitorService : Service() {
     override fun onDestroy() {
         scope.cancel()
         soundPlayer.release()
+        cancelWakeAlarm()
         MonitorStatus.clear()
         if (instance === this) instance = null
         super.onDestroy()
@@ -211,9 +226,17 @@ class LocationMonitorService : Service() {
                 val targetMs = if (nextStart != null && nextStart > nowMs) nextStart
                                else nowMs + NO_ACTIVE_ALARM_FALLBACK_MS
                 val sleepMs = (targetMs - nowMs).coerceIn(MIN_SLEEP_MS, MAX_SLEEP_CAP_MS)
+                // Long sommeil (heures/jours) : on planifie une alarme résistante au
+                // mode Doze pour que le réveil ne soit pas décalé si l'appareil s'endort.
+                if (sleepMs > LONG_SLEEP_THRESHOLD_MS) {
+                    scheduleWakeAlarm(nowMs + sleepMs)
+                }
                 withTimeoutOrNull(sleepMs) { wakeChannel.receive() }
                 continue
             }
+
+            // Surveillance active de nouveau : plus besoin de l'alarme de long sommeil.
+            cancelWakeAlarm()
 
             val now = System.currentTimeMillis()
             var nextDue = Long.MAX_VALUE
@@ -370,6 +393,33 @@ class LocationMonitorService : Service() {
         MonitorStatus.publishAll(map)
     }
 
+    // ---------------- Réveil longue durée (résistance au Doze) ----------------
+
+    /**
+     * Planifie une alarme de réveil qui se déclenche à l'heure pile, y compris
+     * si l'appareil est en mode Doze.
+     *
+     * `setAlarmClock` (API 23+) = exact + whileIdle + icône horloge dans la
+     * barre d'état, **sans permission supplémentaire** — contrairement à
+     * `setExactAndAllowWhileIdle` qui exige `SCHEDULE_EXACT_ALARM` (API 31+).
+     * L'icône horloge est un signal utile : l'utilisateur voit qu'un réveil
+     * de surveillance est planifié.
+     *
+     * Quand l'alarme sonne, `WakeReceiver` réveille la boucle (requestWake)
+     * ou redémarre le service si le processus a été tué. La boucle recalcule
+     * ensuite : si elle doit encore dormir, elle re-planifie sur la cible
+     * recalculée (auto-correction si le réveil a été décalé).
+     */
+    private fun scheduleWakeAlarm(fireAtMs: Long) {
+        val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        am.setAlarmClock(AlarmManager.AlarmClockInfo(fireAtMs, wakeAlarmPending), wakeAlarmPending)
+    }
+
+    /** Annule l'alarme de réveil en attente (no-op si aucune n'est planifiée). */
+    private fun cancelWakeAlarm() {
+        (getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(wakeAlarmPending)
+    }
+
     // ---------------- Notifications ----------------
 
     private fun ensureChannels() {
@@ -445,7 +495,20 @@ class LocationMonitorService : Service() {
         private const val NO_ACTIVE_ALARM_FALLBACK_MS = 15 * 60_000L    // filet de sécurité 15 min
         private const val MAX_SLEEP_CAP_MS = 8L * 24 * 60 * 60 * 1000L  // plafond 8 jours
 
+        /**
+         * En-deçà de ce seuil, le simple délai coroutine suffit : le Doze
+         * « normal » ne démarre qu'après ~30 min d'inactivité (écran éteint,
+         * pas de charge, immobile), le « moderate Doze » peut intervenir un peu
+         * plus tôt — 10 min est une marge de sécurité conservative.
+         */
+        private const val LONG_SLEEP_THRESHOLD_MS = 10 * 60_000L
+
+        private const val WAKE_REQUEST_CODE = 200
+        const val ACTION_WAKE = "fr.rsgnl.perimetre.ACTION_WAKE"
+
         private var instance: LocationMonitorService? = null
+        /** Le service est-il toujours en cours d'exécution dans ce processus ? */
+        fun isRunning(): Boolean = instance != null
         /** Réveille la boucle de surveillance (appelé quand la liste d'alarmes change). */
         fun requestWake() {
             instance?.wakeChannel?.trySend(Unit)

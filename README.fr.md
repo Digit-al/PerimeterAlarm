@@ -65,7 +65,7 @@ Lorsqu'une alarme est **activée** et **dans sa période de validité**, la posi
 - **Déclenchement** : quand la distance devient ≤ au rayon, une alarme (notification haute priorité + son + vibration) est émise. Une **hystérésis** de 15 % évite les re-déclenchements tant que vous restez dans la zone.
 
 ### Optimisation batterie (sommeil ciblé)
-Quand aucune alarme n'est active et dans sa période, le service **dort jusqu'au prochain début de période** (calculé à partir des jours + heures, jusqu'à 8 jours devant) au lieu de poller toutes les 30 s. Sauvegarder une alarme réveille le service immédiatement. Note : pour des sommeils de plusieurs jours, Android Doze peut décaler légèrement le réveil (WorkManager/AlarmManager serait l'étape suivante).
+Quand aucune alarme n'est active et dans sa période, le service **dort jusqu'au prochain début de période** (calculé à partir des jours + heures, jusqu'à 8 jours devant) au lieu de poller toutes les 30 s. Sauvegarder une alarme réveille le service immédiatement. Pour les sommeils de plus de 10 minutes, le service planifie en plus un **réveil résistant au Doze** (`AlarmManager.setAlarmClock`) : il se déclenche à l'heure même si l'appareil est en mode Doze, et une icône horloge est affichée dans la barre d'état tant que le réveil est en attente — aucune permission supplémentaire requise.
 
 ### Paramètres
 La page **Paramètres** permet de configurer :
@@ -102,7 +102,8 @@ app/src/main/java/fr/rsgnl/perimetre/
 │       └── Widgets.kt               # Observeur position, sélecteur jours, éditeur son
 ├── service/
 │   ├── LocationMonitorService.kt    # Foreground service : surveillance + alarme
-│   └── BootReceiver.kt              # Redémarrage après reboot
+│   ├── BootReceiver.kt              # Redémarrage après reboot
+│   └── WakeReceiver.kt              # Réveil résistant au Doze (longs sommeils)
 └── util/
     ├── Geo.kt                       # Haversine (distance)
     ├── TimeUtils.kt                 # Période de validité + prochain début + formatage
@@ -116,7 +117,8 @@ app/src/main/java/fr/rsgnl/perimetre/
 1. demande un **fix GPS unique** à chaque vérification (GPS allumé ~5-15 s par cycle → batterie minimale),
 2. pour chaque alarme active et dans sa période, maintient un **état** (dernière distance, vitesse, prochain intervalle, état déclenché),
 3. planifie la prochaine vérification via la formule dynamique ci-dessus,
-4. déclenche l'alarme à l'entrée dans le périmètre.
+4. déclenche l'alarme à l'entrée dans le périmètre,
+5. pour les **longs sommeils** (aucune alarme active, à des heures/jours), planifie un réveil résistant au Doze via `AlarmManager.setAlarmClock` (géré par `WakeReceiver`).
 
 Le service démarre automatiquement s'il existe au moins une alarme activée (y compris au redémarrage de l'appareil via `BootReceiver`), et s'arrête quand aucune alarme n'est active.
 

@@ -49,6 +49,14 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".service.WakeReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="fr.rsgnl.perimetre.ACTION_WAKE" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

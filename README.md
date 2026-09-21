@@ -65,7 +65,7 @@ When an alarm is **enabled** and **within its validity period**, the position is
 - **Triggering**: when the distance becomes ≤ the radius, an alarm (high-priority notification + sound + vibration) is raised. A **15 % hysteresis** prevents re-triggering while you stay inside the zone.
 
 ### Battery optimization (targeted sleeping)
-When no alarm is active and within its period, the service **sleeps until the next period start** (computed with the day-of-week + times, up to 8 days ahead) instead of polling every 30 s. Saving an alarm wakes the service immediately. Note: for sleeps of several days, Android Doze may delay the wake-up slightly (WorkManager/AlarmManager would be the next step).
+When no alarm is active and within its period, the service **sleeps until the next period start** (computed with the day-of-week + times, up to 8 days ahead) instead of polling every 30 s. Saving an alarm wakes the service immediately. For sleeps longer than 10 minutes, the service additionally schedules a **Doze-resistant wake** (`AlarmManager.setAlarmClock`): it fires on time even if the device is in Doze, and a clock icon is shown in the status bar while the wake is pending — no extra permission required.
 
 ### Settings
 The **Settings** page lets you configure:
@@ -102,7 +102,8 @@ app/src/main/java/fr/rsgnl/perimetre/
 │       └── Widgets.kt               # Location watcher, day selector, sound editor
 ├── service/
 │   ├── LocationMonitorService.kt    # Foreground service: monitoring + alarm
-│   └── BootReceiver.kt              # Restart after device reboot
+│   ├── BootReceiver.kt              # Restart after device reboot
+│   └── WakeReceiver.kt              # Doze-resistant wake for long sleeps
 └── util/
     ├── Geo.kt                       # Haversine (distance)
     ├── TimeUtils.kt                 # Validity period + next period start + formatting
@@ -116,7 +117,8 @@ app/src/main/java/fr/rsgnl/perimetre/
 1. requests a **single GPS fix** at each check (GPS only on for ~5-15 s per cycle → minimal battery),
 2. for each active and in-period alarm, keeps a **state** (last distance, speed, next interval, triggered state),
 3. schedules the next check with the dynamic formula above,
-4. triggers the alarm when entering the perimeter.
+4. triggers the alarm when entering the perimeter,
+5. for **long sleeps** (no active alarm, hours/days ahead), schedules a Doze-resistant wake via `AlarmManager.setAlarmClock` (handled by `WakeReceiver`).
 
 > **Battery**: the GPS is NOT continuously locked. When you are far and stationary (next check in 5 min), the GPS only wakes up for ~15 s to take a fix, then powers off. When you approach, checks become more frequent and the GPS is active more often — exactly when you need it.
 
