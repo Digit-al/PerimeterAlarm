@@ -5,12 +5,12 @@
 
 ---
 
-## Current State (last updated: 2025-07-18)
+## Current State (last updated: 2026-09-21)
 
 **Branch**: `main`  
-**Last commit**: `50e4f55` — feat: add ringtone reset button (back to system default)  
-**Build**: ✅ assembles successfully (debug APK)  
-**User testing**: In progress — user validating one-shot alarms + ringtone picker on Android 17 (Pixel).
+**Last commit**: `18f2653` — fix: route alarm sound to system alarm stream (USAGE_ALARM)  
+**Build**: ✅ assembles successfully (debug APK, `:app:assembleDebug`)  
+**User testing**: In progress — user reported alarm volume barely audible (media-stream routing bug, fixed in `18f2653`, awaiting validation on Android 17 (Pixel)).
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -32,10 +32,13 @@
 - [x] **System ringtone picker** (ACTION_RINGTONE_PICKER — works on all Android versions)
 - [x] Ringtone reset button (× to revert to system default)
 - [x] App default ringtone title shown in alarm editor
+- [x] **Release build 1.0.0** — signing config, LGPL 3.0, tag `1.0.0`, F-Droid metadata (`fdroid/app.yml`) (`86c14b9`, `903d1b0`)
+- [x] **Alarm volume fix** — sound routed to `USAGE_ALARM` stream; per-alarm slider no longer a % of the media volume (`18f2653`)
 
 ### What's pending / next
+- [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
 - [ ] User feedback on one-shot alarm behavior
-- [ ] Potential: release build configuration (keystore, signing)
+- [ ] Push commits to `origin/main` after validation (see Build Environment)
 - [ ] Potential: WorkManager/AlarmManager for more reliable wake in Doze
 - [ ] Potential: Tile server configuration (OSM usage policy for heavy use)
 - [ ] Potential: ProGuard rules for release
@@ -44,6 +47,35 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-21 (alarm volume fix)
+
+**Context**: User reported the alarm volume slider "doesn't work": at 100 % the alarm is barely audible when the phone volume is low, and gets louder when the phone volume is raised manually → the alarm volume was a percentage of the *current* volume.
+
+**Diagnosis**: `AlarmSoundPlayer.play()` used `MediaPlayer.create(context, uri)`, which routes audio to the **media stream**. `setVolume(v, v)` then applied the app slider as a multiplier on top of the media volume.
+
+**Fix** (`18f2653`): build the `MediaPlayer` manually and set `AudioAttributes` (`USAGE_ALARM` + `CONTENT_TYPE_SONIFICATION`) before `setDataSource`. The alarm now follows the system **alarm volume** stream, independent of media volume (and audible on silent mode on most devices). Also release the player on creation failure (leak prevention).
+
+**Docs updated**: README.md + README.fr.md (alarm stream note), PROMPT.md (player construction detail), WORK_LOG.md.
+
+**Verification**: `:app:assembleDebug` BUILD SUCCESSFUL (JDK 21). Runtime validation pending (user, Android 17/Pixel).
+
+---
+
+### Session 2026-09-18 (release build + F-Droid — catch-up entry, log was not updated at the time)
+
+**Context**: Release preparation for v1.0.0.
+
+**Changes**:
+- `73b5b50`, `fc1c01e`, `1c4152b` — PROMPT.md upkeep (one-shot, ringtone picker, decisions; pure English)
+- `27f8ac7` — docs sync (WORK_LOG, README.md, README.fr.md)
+- `86c14b9` — debug APK renamed to `PerimeterAlarm-debug.apk` (`archivesBaseName`)
+- `903d1b0` — release signing config (`david-release.keystore` at repo root, now git-ignored) + **LGPL 3.0** license, tag **`1.0.0`**
+- Untracked at the time: `fdroid/app.yml` (F-Droid metadata, build 1.0.0 @ `903d1b0`), `AGENT.md` (agent session protocol)
+
+**Note**: commits above `27f8ac7` never got a WORK_LOG update — this entry is the catch-up.
+
+---
 
 ### Session 2025-07-18 (ringtone picker + one-shot)
 
@@ -138,6 +170,8 @@ Full app from scratch. Commit: `b6cd9c4`
 | 07-18 | One-shot via `SharedFlow` (not callback) | Decouples service from UI; multiple collectors possible |
 | 07-18 | System `ACTION_RINGTONE_PICKER` (not custom list) | On Android 14+/17, system ringtones are in a dedicated provider not in MediaStore. The system intent handles ALL versions + no permission needed. |
 | 07-18 | `READ_MEDIA_AUDIO` still in manifest | May be needed in future if we add a custom picker again; harmless otherwise |
+| 09-18 | LGPL-3.0 + F-Droid metadata (`fdroid/app.yml`) | Publish on F-Droid requires a free license + declarative build |
+| 09-21 | `AudioAttributes` `USAGE_ALARM` instead of `MediaPlayer.create()` | `create()` routes to the media stream: the app volume slider was a % of the *current media volume*, making the alarm barely audible at low media volume |
 
 ---
 

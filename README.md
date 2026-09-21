@@ -45,6 +45,7 @@ An alarm consists of:
    - "use default settings" toggle (otherwise custom settings),
    - **vibration** (on/off), **volume** (0–100 % slider), **ringtone** (system ringtone picker — shows all available alarm tones, or the system default).
    - A **× button** resets the ringtone back to the system default.
+   - The alarm sound plays on the system **alarm volume** stream (`USAGE_ALARM`) — independent of the media volume, and audible even when the phone is on silent; the slider sets a percentage of that stream.
 
 ### Dynamic check logic
 When an alarm is **enabled** and **within its validity period**, the position is checked at dynamic intervals:

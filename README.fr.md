@@ -45,6 +45,7 @@ Une alarme se compose de :
    - toggle « utiliser les réglages par défaut » (sinon réglages personnalisés),
    - **vibreur** (on/off), **volume** (slider 0–100 %), **sonnerie** (sélecteur système — affiche toutes les sonneries disponibles, ou défaut système).
    - Un **bouton ×** réinitialise la sonnerie au défaut système.
+   - Le son de l'alarme joue sur le flux **volume alarme** système (`USAGE_ALARM`) — indépendant du volume média, et audible même en mode silencieux ; le slider règle un pourcentage de ce flux.
 
 ### Logique de vérification dynamique
 Lorsqu'une alarme est **activée** et **dans sa période de validité**, la position est vérifiée à des intervalles dynamiques :

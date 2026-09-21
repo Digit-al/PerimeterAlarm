@@ -143,7 +143,7 @@ class Tracker {
 
 When triggered:
 - Show a **high-priority notification** (channel: alarm, `IMPORTANCE_HIGH`) with a "Stop" action.
-- Play the ringtone via `MediaPlayer` (looping, volume from settings).
+- Play the ringtone via `MediaPlayer` (looping, volume from settings). Build the player manually and route it to the system alarm stream with `AudioAttributes` (`USAGE_ALARM`, `CONTENT_TYPE_SONIFICATION`) so the volume follows the alarm volume, not the media volume — `MediaPlayer.create()` routes to the media stream, avoid it.
 - Vibrate via `VibratorManager` (pattern: 0-600ms on-400ms off, repeating).
 - The sound/ringtone URI comes from the alarm's `SoundSettings`, or falls back to the app's `defaultSound`.
 
@@ -246,7 +246,7 @@ Requested at runtime on first launch via `ActivityResultContracts.RequestMultipl
 
 - **`Geo`**: Haversine distance (meters) between two lat/lon points.
 - **`TimeUtils`**: `isWithinPeriod()` (handles midnight-crossing), `nextPeriodStart()` (scans 8 days ahead), `formatHourMinute()`, `formatDays()`.
-- **`AlarmSoundPlayer`**: manages `MediaPlayer` (per-alarm, looping, volume) and `Vibrator` (per-alarm, waveform pattern). Indexes by alarm ID for individual stop.
+- **`AlarmSoundPlayer`**: manages `MediaPlayer` (per-alarm, looping, volume, routed to `USAGE_ALARM`) and `Vibrator` (per-alarm, waveform pattern). Indexes by alarm ID for individual stop.
 - **`LocationUtils`**: `lastKnownLocation()` — checks GPS, network, passive providers, returns the most recent.
 - **`RingtoneUtils`**: `title(context, uri)` — returns the display name for a ringtone URI, or localized "Default (system)" if null. Also `hasMediaAudioPermission(context)` to check `READ_MEDIA_AUDIO` (API 33+) / `READ_EXTERNAL_STORAGE`.
 - **`Format`**: distance formatting (m/km with appropriate precision).
