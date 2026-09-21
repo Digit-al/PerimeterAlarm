@@ -1,6 +1,7 @@
 package fr.rsgnl.perimetre.util
 
 import android.content.Context
+import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.net.Uri
@@ -13,6 +14,10 @@ import android.os.VibratorManager
  * Lecture des alarmes : sonnerie (MediaPlayer, volume réglable, en boucle) + vibreur.
  * Une instance est partagée par le service ; les lecteurs sont indexés par identifiant
  * d'alarme pour pouvoir les arrêter individuellement.
+ *
+ * La sonnerie est routée sur le flux « alarme » (USAGE_ALARM) : le volume réglé dans
+ * l'application est appliqué en plus du volume alarme système, indépendamment du
+ * volume média.
  */
 class AlarmSoundPlayer {
 
@@ -24,14 +29,27 @@ class AlarmSoundPlayer {
         stopSound(id)
         val u = uri?.let { runCatching { Uri.parse(it) }.getOrNull() }
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+        var mp: MediaPlayer? = null
         try {
-            val mp = MediaPlayer.create(context, u) ?: return
+            mp = MediaPlayer()
+            // Sans cela MediaPlayer.create() routait sur le flux média : le volume
+            // réglé ici était un pourcentage du volume média courant.
+            mp.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            mp.setDataSource(context, u)
             mp.isLooping = loop
             val v = volume.coerceIn(0f, 1f)
             mp.setVolume(v, v)
+            mp.prepare()
             mp.start()
             players[id] = mp
+            mp = null
         } catch (ignored: Exception) {
+            mp?.release()
         }
     }
 
