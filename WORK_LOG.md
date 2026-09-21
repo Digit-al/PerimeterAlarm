@@ -8,9 +8,9 @@
 ## Current State (last updated: 2026-09-21)
 
 **Branch**: `main`  
-**Last commit**: `ec96d1e` — feat: export/import full config (settings + alarms) as JSON file  
+**Last commit**: `2dee7be` — feat: Doze-resistant wake for long sleeps (setAlarmClock + WakeReceiver)  
 **Build**: ✅ assembles successfully (debug APK, `:app:assembleDebug`)  
-**User testing**: In progress — alarm volume fix (`18f2653`) awaiting validation on Android 17 (Pixel). New: config export/import (see below).
+**User testing**: In progress — alarm volume fix (`18f2653`) awaiting validation on Android 17 (Pixel). New: Doze-resistant wake for long sleeps (see below).
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -35,13 +35,14 @@
 - [x] **Release build 1.0.0** — signing config, LGPL 3.0, tag `1.0.0`, F-Droid metadata (`fdroid/app.yml`) (`86c14b9`, `903d1b0`)
 - [x] **Alarm volume fix** — sound routed to `USAGE_ALARM` stream; per-alarm slider no longer a % of the media volume (`18f2653`)
 - [x] **Config export/import** — JSON file (SAF) containing all settings + alarms; buttons in Settings page
+- [x] **Doze-resistant wake** — `AlarmManager.setAlarmClock` + `WakeReceiver` for long sleeps (hours/days)
 
 ### What's pending / next
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
 - [ ] User validation of export/import on device
 - [ ] User feedback on one-shot alarm behavior
+- [ ] User validation of Doze-resistant wake on device (clock icon during long sleeps, on-time wake)
 - [ ] Push commits to `origin/main` after validation (see Build Environment)
-- [ ] Potential: WorkManager/AlarmManager for more reliable wake in Doze
 - [ ] Potential: Tile server configuration (OSM usage policy for heavy use)
 - [ ] Potential: ProGuard rules for release
 - [ ] Potential: notification with "dismiss" action already tested?
@@ -49,6 +50,30 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-21 (Doze-resistant wake for long sleeps)
+
+**Context**: PROMPT.md edge case #9 said: "For very long sleeps (hours/days), Android Doze may delay the wake. Acceptable for now; WorkManager/AlarmManager would be the next evolution." User asked to implement this evolution.
+
+**Implementation**:
+- `service/WakeReceiver.kt` (new): static receiver (`ACTION_WAKE`). If the service is running → `requestWake()` (cuts the loop's sleep via the wake channel). Otherwise (process killed) → restarts the service if at least one alarm is enabled (same logic as BootReceiver).
+- `LocationMonitorService.kt`:
+  - `LONG_SLEEP_THRESHOLD_MS = 10 min` — below that, a plain coroutine delay is fine (standard Doze starts ~30 min after inactivity; "moderate Doze" can start earlier, so 10 min is a conservative margin).
+  - `scheduleWakeAlarm(fireAtMs)`: `AlarmManager.setAlarmClock(AlarmClockInfo, pendingIntent)` — exact, fires while in Doze, clock icon in the status bar, **no extra permission**.
+  - `cancelWakeAlarm()`: called when active monitoring resumes, in `onDestroy()`, and in `onCreate()` (a PendingIntent survives process death).
+  - "No active alarm" branch: when the computed sleep > threshold, schedules the alarm at the wake time.
+- `AndroidManifest.xml`: declares `WakeReceiver` (`exported=false`, action `fr.rsgnl.perimetre.ACTION_WAKE`).
+
+**Design decisions**:
+- Chose `setAlarmClock` over `setExactAndAllowWhileIdle`: same Doze-resistance and precision, but `SCHEDULE_EXACT_ALARM` is **not** required (auto-granted on API 31+ but user-revocable; must be explicitly requested via Settings on API 33+ for apps targeting 33+). The status-bar clock icon is a side effect that is actually useful (the user sees a wake is scheduled).
+- WorkManager rejected: overkill for a single scheduled wake signal (there is no work to run — just interrupt the loop).
+- Self-correcting: if a wake is delayed or the process was killed, the loop re-evaluates state and reschedules on the recomputed target.
+
+**Build**: ✅ `:app:assembleDebug` BUILD SUCCESSFUL (JDK 21). Runtime validation pending (device: long sleep with screen off → clock icon appears, wake at the right time).
+
+**Docs updated**: PROMPT.md (new "Doze-Resistant Wake" subsection, edge case #9, project structure), README.md + README.fr.md (battery section, service list, file tree), WORK_LOG.md.
+
+---
 
 ### Session 2026-09-21 (config export/import)
 
@@ -200,6 +225,7 @@ Full app from scratch. Commit: `b6cd9c4`
 | 09-21 | `AudioAttributes` `USAGE_ALARM` instead of `MediaPlayer.create()` | `create()` routes to the media stream: the app volume slider was a % of the *current media volume*, making the alarm barely audible at low media volume |
 | 09-21 | SAF for export/import (not direct file I/O) | No storage permission needed, works on scoped storage (Android 10+), user picks location |
 | 09-21 | Full replace on import (not merge) | Simpler UX, predictable result — user can keep a backup before importing |
+| 09-21 | Doze-resistant long-sleep wake via `setAlarmClock` (not WorkManager / `setExactAndAllowWhileIdle`) | Exact + fires while idle + **no extra permission** (avoids `SCHEDULE_EXACT_ALARM` on API 31+/targetSdk 34); status-bar clock icon is a welcome side effect. WorkManager = overkill for a single wake signal |
 
 ---
 
@@ -234,6 +260,7 @@ Full app from scratch. Commit: `b6cd9c4`
 | `README.md` / `README.fr.md` | User-facing documentation (EN/FR) |
 | `app/build.gradle` | Dependencies + build config |
 | `service/LocationMonitorService.kt` | Core monitoring + alarm logic |
+| `service/WakeReceiver.kt` | Doze-resistant wake for long sleeps |
 | `ui/components/OsmMap.kt` | Map composable (osmdroid) |
 | `ui/components/Widgets.kt` | Reusable UI (RingtonePicker, SoundSettingsEditor, observeCurrentLocation) |
 | `data/Alarm.kt` | Data models (Alarm, SoundSettings, AppSettings) |
