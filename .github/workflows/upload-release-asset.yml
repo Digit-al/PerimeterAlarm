@@ -1,0 +1,43 @@
+# Uploads an APK committed to a branch as a release asset.
+# Use when a fine-grained PAT lacks the permission needed by the
+# REST "upload release asset" route (returns 404) — the workflow's
+# GITHUB_TOKEN (GitHub App) has full releases:write.
+#
+# Usage:
+#   1. push a branch containing the APK, e.g. `release-apk`:
+#        git checkout -b release-apk
+#        cp app/build/outputs/apk/release/PerimeterAlarm-release.apk .
+#        git add PerimeterAlarm-release.apk && git commit -m "release: 1.0.0 APK"
+#        git push origin release-apk
+#   2. run this workflow (Actions tab or API), ref = release-apk,
+#      release_tag = 1.0.0, apk_path = PerimeterAlarm-release.apk
+#   3. delete the branch afterwards.
+name: Upload release asset
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to attach the asset to"
+        required: true
+        default: "1.0.0"
+      apk_path:
+        description: "Path of the APK file in the repo (on the selected ref)"
+        required: true
+        default: "PerimeterAlarm-release.apk"
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      releases: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la "${{ inputs.apk_path }}"
+          gh release upload "${{ inputs.release_tag }}" "${{ inputs.apk_path }}" --clobber
