@@ -8,7 +8,7 @@
 ## Current State (last updated: 2026-09-21)
 
 **Branch**: `main`  
-**Last commit**: pending — feat: automatic exact-alarm permission prompt on the Home screen  
+**Last commit**: `0bdfcb0` — feat: automatic exact-alarm permission prompt on the Home screen  
 **Build**: ✅ assembles successfully (debug + release APK)  
 **Release 1.0.0**: tag `1.0.0` = `a5c7200` (the SCHEDULE_EXACT_ALARM crash fix) — **outdated**: `7f40c5b` (interval fix + exact-alarm card) and the distance-cap fix are not in it. GitHub asset + F-Droid ref must be refreshed once validated on device.  
 **User testing**: Doze crash validated fixed (2026-09-21). Issues found on device and fixed: (1) interval pinned at max near the perimeter → `7f40c5b` (ETA from entry point + 100 m fast zone); (2) SCHEDULE_EXACT_ALARM denied by default for targetSdk 33+ → `7f40c5b` (Settings card); (3) **stopped/slow user near the perimeter** (traffic jam, chat on foot) still got the 5-min max interval → new distance-based cap (interval ≤ time to cover the remaining distance at a 15 m/s reference resume speed; ≈30 s below 600 m, ≈1 min at 1 km, ≈2 min at 2 km). Awaiting on-device validation of the interval hotfixes + exact-alarm permission grant.
