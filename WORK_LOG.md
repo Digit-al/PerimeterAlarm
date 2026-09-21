@@ -8,7 +8,7 @@
 ## Current State (last updated: 2026-09-21)
 
 **Branch**: `main`  
-**Last commit**: `1d3a695` — feat: export/import full config (settings + alarms) as JSON file  
+**Last commit**: `ec96d1e` — feat: export/import full config (settings + alarms) as JSON file  
 **Build**: ✅ assembles successfully (debug APK, `:app:assembleDebug`)  
 **User testing**: In progress — alarm volume fix (`18f2653`) awaiting validation on Android 17 (Pixel). New: config export/import (see below).
 

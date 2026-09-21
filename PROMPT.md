@@ -75,9 +75,17 @@ data class AppSettings(
     var defaultSound: SoundSettings = SoundSettings(useDefault = false),
     var language: String = "auto"  // "auto" | "en" | "fr"
 )
+
+data class ConfigExport(
+    val version: Int = 1,
+    val settings: AppSettings,
+    val alarms: List<Alarm>
+)
 ```
 
 Persistence: `AlarmRepository` serializes `List<Alarm>` and `AppSettings` as JSON strings in SharedPreferences. Every save triggers `LocationMonitorService.requestWake()` to notify the monitoring loop.
+
+Export/Import: `ConfigExport` wraps settings + all alarms in a versioned JSON structure for backup/restore via file I/O (see Settings Screen).
 
 ---
 
@@ -187,6 +195,10 @@ Single-activity app with a `sealed class Screen` (Home, Editor, Settings, Debug)
 - Min interval (seconds), Max interval (seconds).
 - Language selector: Auto / English / Français.
 - Default sound settings (vibration, volume, ringtone).
+- **Backup & restore** section:
+  - **Export button**: serializes `ConfigExport` (version, settings, alarms) to JSON, writes to a user-chosen file via `ActivityResultContracts.CreateDocument("application/json")` (SAF — no storage permission needed). Default filename: `perimetre_config.json`.
+  - **Import button**: launches `ActivityResultContracts.OpenDocument()` (filter `application/json`), reads the JSON, deserializes `ConfigExport`, normalizes fields (same logic as repository load), then **replaces all** existing alarms and settings. Snackbar confirms success or reports invalid file.
+  - The import uses `rememberCoroutineScope()` to handle I/O off the main thread, and a `mutableStateOf<String?>` + `LaunchedEffect` to display the snackbar (since the SAF callback is neither composable nor suspend).
 
 ### Debug Screen
 - Polls `MonitorStatus.statuses` (a `StateFlow<Map<String, AlarmDebugStatus>>`) every 30 seconds.
@@ -277,6 +289,7 @@ app/src/main/java/fr/rsgnl/perimetre/
 ├── data/
 │   ├── Alarm.kt              # Alarm, SoundSettings, AppSettings, AppLanguage
 │   ├── AlarmRepository.kt    # SharedPreferences + Gson
+│   ├── ConfigExport.kt       # Versioned export/import structure
 │   └── MonitorStatus.kt      # StateFlow publisher
 ├── ui/
 │   ├── AppViewModel.kt       # State + navigation + service lifecycle
@@ -343,6 +356,10 @@ app/src/main/java/fr/rsgnl/perimetre/
 
 14. **App default ringtone display**: in the alarm editor, when `useDefault=true`, the ringtone button shows "Défaut app : <title>" (the actual app-level ringtone name) instead of "Défaut (système)". This requires passing `appSettings.defaultSound.ringtoneUri` to the `SoundSettingsEditor` component.
 
+15. **Config export/import (SAF)**: uses Storage Access Framework (`CreateDocument` / `OpenDocument`) instead of direct file I/O — no runtime permission needed, works on scoped storage (Android 10+). Import is a **full replace** (not merge): all alarms and settings from the file overwrite the current state. The JSON is versioned (`"version": 1`) for forward compatibility. The import normalizes fields exactly like `AlarmRepository.loadAlarms()` / `loadSettings()` to handle missing fields gracefully.
+
+16. **Snackbar in non-composable callback**: the `rememberLauncherForActivityResult` callback is neither `@Composable` nor `suspend`, so `stringResource()` and `showSnackbar()` cannot be called directly. Solution: use `rememberCoroutineScope()` to launch a coroutine, store the message in a `mutableStateOf<String?>`, and display it via a `LaunchedEffect` that calls `snackbarHostState.showSnackbar()`.
+
 ---
 
 ## 14. Acceptance Criteria
@@ -361,3 +378,6 @@ app/src/main/java/fr/rsgnl/perimetre/
 - [ ] Debug screen shows live state every 30s
 - [ ] Map: tap to move, recenter, "my location", zoom without overflow
 - [ ] i18n: all strings in EN + FR, language switchable from settings
+- [ ] Export: produces a valid JSON file containing all settings and alarms
+- [ ] Import: restores settings and alarms from a previously exported file
+- [ ] Import of invalid/corrupt file shows error snackbar without crashing
