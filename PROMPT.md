@@ -126,9 +126,16 @@ while (true) {
         Update tracker state
         Compute next interval dynamically:
             distToEntry = max(0, distance_to_center - radius)  # distance to the ENTRY point, NOT the center
+            cap = distToEntry / REFERENCE_SPEED_MPS (15 m/s, a car resuming in city traffic),
+                  clamped to [min, max]
+                  # distance-based cap: even STOPPED (traffic jam, chat, ...) the wait
+                  # must not exceed the time to cover the remaining distance at the
+                  # reference resume speed — the boundary could be crossed right
+                  # after resuming. ≈30 s below 600 m, ≈1 min at 1 km, ≈2 min at
+                  # 2 km, max beyond ~4.5 km.
             if distToEntry <= 100 m (PROXIMITY_FAST_ZONE_M) → min interval (fast trigger near the boundary)
-            elif speed <= 0.05 m/s → max interval
-            else → (distToEntry / speed) / 2, clamped to [min, max]
+            elif speed <= 0.05 m/s → cap
+            else → (distToEntry / speed) / 2, clamped to [min, cap]
         Check triggering:
             if distance <= radius AND not already triggered → trigger alarm
             if distance > radius * 1.15 AND was triggered → stop alarm (hysteresis 15%)

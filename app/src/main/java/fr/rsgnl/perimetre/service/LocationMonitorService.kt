@@ -348,16 +348,27 @@ class LocationMonitorService : Service() {
     private fun computeInterval(tracker: Tracker, alarm: Alarm, minMs: Long, maxMs: Long): Long {
         // Distance à l'ENTRÉE du périmètre (et non au centre) : avec un rayon de
         // 200 m, l'ETA au centre est surestimée de rayon/vitesse (666 s à 0,3 m/s !)
-        // et l'intervalle reste bloqué au maximum même très près du périmètre.
+        // et l'intervalle resterait bloqué au maximum même très près du périmètre.
         val distToEntry = (tracker.lastDistM - alarm.radiusMeters).coerceAtLeast(0.0)
         // À l'intérieur du périmètre ou très proche de l'entrée : vérification la
         // plus rapide — c'est là que l'utilisateur attend un déclenchement immédiat
         // (et une détection rapide de la sortie, via l'hystérésis).
         if (distToEntry <= PROXIMITY_FAST_ZONE_M) return minMs
-        if (tracker.lastSpeedMps <= SPEED_EPS) return maxMs
+        // Plafond basé sur la distance : même à l'arrêt (bouchon, discussion à
+        // pied, …) ou en déplacement lent, l'intervalle ne doit jamais dépasser
+        // le temps de couvrir la distance restante à la vitesse de « reprise »
+        // de référence (~15 m/s, une voiture qui repart en ville) : le
+        // périmètre pourrait être franchi juste après la reprise. Plus on est
+        // près de l'entrée, plus l'attente est donc courte (≈30 s sous 600 m,
+        // ≈1 min à 1 km, ≈2 min à 2 km, maximum au-delà de 4,5 km).
+        // Ce plafond protège aussi la branche « en mouvement » : l'estimation
+        // GPS de la vitesse est bruitée à faible vitesse (0,2–0,5 m/s dans un
+        // bouchon), ce qui gonflerait l'ETA et l'intervalle.
+        val capMs = (distToEntry / REFERENCE_SPEED_MPS * 1000.0).toLong().coerceIn(minMs, maxMs)
+        if (tracker.lastSpeedMps <= SPEED_EPS) return capMs
         val etaSeconds = distToEntry / tracker.lastSpeedMps
         val intervalMs = (etaSeconds / 2.0) * 1000.0
-        return intervalMs.toLong().coerceIn(minMs, maxMs)
+        return intervalMs.toLong().coerceIn(minMs, capMs)
     }
 
     private fun triggerAlarm(alarm: Alarm) {
@@ -532,6 +543,15 @@ class LocationMonitorService : Service() {
          // problème que quand on est loin).
          */
         private const val PROXIMITY_FAST_ZONE_M = 100.0
+
+        /**
+         * Vitesse de « reprise » de référence (m/s) pour le plafond d'intervalle
+         * basé sur la distance : ~15 m/s ≈ 54 km/h, une voiture qui repart dans
+         * le trafic urbain. L'intervalle ne doit jamais dépasser le temps de
+         * couvrir la distance restante à cette vitesse (le franchissement est
+         * alors imminent après une reprise).
+         */
+        private const val REFERENCE_SPEED_MPS = 15.0
 
         private const val WAKE_REQUEST_CODE = 200
         const val ACTION_WAKE = "fr.rsgnl.perimetre.ACTION_WAKE"

@@ -62,7 +62,8 @@ Lorsqu'une alarme est **activée** et **dans sa période de validité**, la posi
   borné entre un **minimum** et un **maximum** (par défaut 30 s et 5 min) :
   - **à moins de 100 m de l'entrée** (ou à l'intérieur du périmètre) → vérifications à l'intervalle minimum (déclenchement immédiat attendu près de la frontière) ;
   - si vous vous rapprochez vite → vérifications plus fréquentes (jusqu'au minimum, 30 s) ;
-  - si vous ne vous rapprochez pas → vérifications espacées (jusqu'au maximum, 5 min).
+  - si vous êtes **à l'arrêt** (bouchon, discussion, …) ou en déplacement lent → l'intervalle est plafonné par le temps de couvrir la distance restante à une vitesse de « reprise » réaliste (≈ une voiture en ville) : ≈ 30 s sous 600 m, ≈ 1 min à 1 km, ≈ 2 min à 2 km — au lieu du maximum complet ;
+  - si vous êtes loin et ne vous rapprochez pas → vérifications espacées (jusqu'au maximum, 5 min).
 
 - **Déclenchement** : quand la distance devient ≤ au rayon, une alarme (notification haute priorité + son + vibration) est émise. Une **hystérésis** de 15 % évite les re-déclenchements tant que vous restez dans la zone.
 

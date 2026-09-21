@@ -62,7 +62,8 @@ When an alarm is **enabled** and **within its validity period**, the position is
   clamped between a **minimum** and a **maximum** (defaults: 30 s and 5 min):
   - **within 100 m of the entry** (or inside the perimeter) → checks run at the minimum interval (immediate trigger expected near the boundary);
   - if you are approaching fast → more frequent checks (down to the minimum, 30 s);
-  - if you are not approaching → sparser checks (up to the maximum, 5 min).
+  - if you are **stopped** (traffic jam, chat, …) or moving slowly → the interval is capped by the time to cover the remaining distance at a reference "resume" speed (≈ a car in city traffic): ≈ 30 s below 600 m, ≈ 1 min at 1 km, ≈ 2 min at 2 km — instead of the full maximum;
+  - if you are far away and not approaching → sparser checks (up to the maximum, 5 min).
 
 - **Triggering**: when the distance becomes ≤ the radius, an alarm (high-priority notification + sound + vibration) is raised. A **15 % hysteresis** prevents re-triggering while you stay inside the zone.
 

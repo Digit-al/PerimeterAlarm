@@ -8,10 +8,10 @@
 ## Current State (last updated: 2026-09-21)
 
 **Branch**: `main`  
-**Last commit**: `7f40c5b` — fix: dynamic interval uses distance to perimeter entry + exact-alarm card in Settings  
+**Last commit**: `a1b2c3d` (pending) — fix: distance-based interval cap for stopped/slow users near the perimeter  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: tag `1.0.0` = `a5c7200` (the SCHEDULE_EXACT_ALARM crash fix) — **outdated again**: `7f40c5b` (interval fix + exact-alarm card) is not in it. GitHub asset + F-Droid ref must be refreshed once the interval fix is validated on device.  
-**User testing**: Doze crash validated fixed (2026-09-21). Two more issues found on device and fixed in `7f40c5b` (hotfix APK shared in chat): (1) interval pinned at max near the perimeter (ETA computed from center, not entry point) — alarm didn't ring on zone entry; (2) SCHEDULE_EXACT_ALARM denied by default for targetSdk 33+ → user must grant it (new card in Settings). Awaiting on-device validation of `7f40c5b`.
+**Release 1.0.0**: tag `1.0.0` = `a5c7200` (the SCHEDULE_EXACT_ALARM crash fix) — **outdated**: `7f40c5b` (interval fix + exact-alarm card) and the distance-cap fix are not in it. GitHub asset + F-Droid ref must be refreshed once validated on device.  
+**User testing**: Doze crash validated fixed (2026-09-21). Issues found on device and fixed: (1) interval pinned at max near the perimeter → `7f40c5b` (ETA from entry point + 100 m fast zone); (2) SCHEDULE_EXACT_ALARM denied by default for targetSdk 33+ → `7f40c5b` (Settings card); (3) **stopped/slow user near the perimeter** (traffic jam, chat on foot) still got the 5-min max interval → new distance-based cap (interval ≤ time to cover the remaining distance at a 15 m/s reference resume speed; ≈30 s below 600 m, ≈1 min at 1 km, ≈2 min at 2 km). Awaiting on-device validation of the interval hotfixes + exact-alarm permission grant.
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -55,6 +55,20 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-21 (distance-based interval cap — stopped user near the perimeter)
+
+**Context**: David's report — "si je suis pris dans un bouchon juste avant l'entrée dans la zone (ou si je m'arrête pour discuter si je suis à pied), on repart sur 5 minutes d'attente à tord alors que je suis tout près."
+
+**Analysis**: after the `7f40c5b` fix, the 100 m proximity fast zone covers "right at the boundary", but a user stopped (speed ≈ 0) a few hundred meters away fell into the `speed <= SPEED_EPS → maxMs` branch → 5-min wait while the jam could clear any second. Also: at low speeds the GPS speed estimate is noisy (0.2–0.5 m/s in a traffic jam), inflating the ETA and pinning the interval at the max even while technically "moving".
+
+**Fix**: distance-based **cap** on the interval: `cap = distToEntry / REFERENCE_SPEED_MPS (15 m/s ≈ 54 km/h, a car resuming in city traffic)`, clamped to [min, max]. Both branches now respect it: stopped → `cap`; moving → `clamp(eta/2, min, cap)`. Result: ≈30 s below ~600 m (falls to the min), ≈40 s at 600 m, ≈1 min at 1 km, ≈2 min at 2 km, max beyond ~4.5 km (15 m/s × 300 s). Far-away behavior unchanged. `REFERENCE_SPEED_MPS` is a named constant (could become a setting later).
+
+**Docs**: PROMPT.md (interval pseudocode), README.md + README.fr.md (dynamic check logic bullets).
+
+**Next**: build, share hotfix APK, on-device validation (traffic-jam scenario at Metzange), then refresh GitHub release asset + tag `1.0.0` + F-Droid ref.
+
+---
 
 ### Session 2026-09-21 (interval fix + exact-alarm permission card)
 
