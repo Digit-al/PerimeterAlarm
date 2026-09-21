@@ -1,0 +1,41 @@
+name: Perimeter Alarm
+summary: Geofence alarms triggered when entering a perimeter
+description: >-
+  Triggers an alarm (sound, vibration, high-priority notification) when you
+  enter a circular perimeter around a location you define on an
+  OpenStreetMap map. Supports dynamic check intervals (faster when
+  approaching), validity periods (day of week + time range, always-on, or
+  one-time), per-alarm sound settings, and a system ringtone picker.
+license: LGPL-3.0-only
+authorName: David R
+authorEmail: david@rsgnl.fr
+category: Navigation
+topic:
+  - Map
+  - Offline
+website: https://github.com/Digit-al/PerimeterAlarm
+sourceRepo: https://github.com/Digit-al/PerimeterAlarm.git
+issueTracker: https://github.com/Digit-al/PerimeterAlarm/issues
+architectures:
+  - arm64-v8a
+  - armeabi-v7a
+  - x86_64
+currentVersion: 1.0.0
+currentVersionCode: 1
+
+builds:
+  - versionName: "1.0.0"
+    versionCode: 1
+    commit: "903d1b0"
+    gradle: true
+    env:
+      GRADLE_OPTS: "-Xmx2g"
+    prebuild: |
+      keytool -genkey -v \
+        -keystore david-release.keystore \
+        -keyalg RSA -keysize 2048 -validity 10000 \
+        -alias perimeter_alarm \
+        -storepass CHANGE_ME -keypass CHANGE_ME \
+        -dname "CN=David R, O=RSGNL, C=FR"
+      rm -f local.properties
+      echo "sdk.dir=$ANDROID_HOME" > local.properties
