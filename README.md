@@ -51,21 +51,23 @@ An alarm consists of:
 When an alarm is **enabled** and **within its validity period**, the position is checked at dynamic intervals:
 
 - **every 30 s** at first,
-- then the interval is computed from the **distance** between you and the location and your **approach speed**:
+- then the interval is computed from the **distance to the perimeter entry** (not the center) and your **approach speed**:
 
   ```
-  estimated time of arrival = distance / approach speed
+  distance to entry = max(0, distance to center - radius)
+  estimated time of arrival = distance to entry / approach speed
   next interval             = estimated time of arrival / 2
   ```
 
   clamped between a **minimum** and a **maximum** (defaults: 30 s and 5 min):
+  - **within 100 m of the entry** (or inside the perimeter) → checks run at the minimum interval (immediate trigger expected near the boundary);
   - if you are approaching fast → more frequent checks (down to the minimum, 30 s);
   - if you are not approaching → sparser checks (up to the maximum, 5 min).
 
 - **Triggering**: when the distance becomes ≤ the radius, an alarm (high-priority notification + sound + vibration) is raised. A **15 % hysteresis** prevents re-triggering while you stay inside the zone.
 
 ### Battery optimization (targeted sleeping)
-When no alarm is active and within its period, the service **sleeps until the next period start** (computed with the day-of-week + times, up to 8 days ahead) instead of polling every 30 s. Saving an alarm wakes the service immediately. For sleeps longer than 10 minutes, the service additionally schedules a **Doze-resistant wake** (`AlarmManager.setAlarmClock`): it fires on time even if the device is in Doze, and a clock icon is shown in the status bar while the wake is pending. On Android 12+ (targeting SDK 31+) this requires the `SCHEDULE_EXACT_ALARM` permission (declared in the manifest, auto-granted at install, user-revocable): if it's missing, the app checks `canScheduleExactAlarms()` and degrades gracefully to a plain inexact sleep (and the Debug screen shows the permission status with a request button).
+When no alarm is active and within its period, the service **sleeps until the next period start** (computed with the day-of-week + times, up to 8 days ahead) instead of polling every 30 s. Saving an alarm wakes the service immediately. For sleeps longer than 10 minutes, the service additionally schedules a **Doze-resistant wake** (`AlarmManager.setAlarmClock`): it fires on time even if the device is in Doze, and a clock icon is shown in the status bar while the wake is pending. On Android 12+ (targeting SDK 31+) this requires the `SCHEDULE_EXACT_ALARM` permission: it is **denied by default for apps targeting SDK 33+** (we target 34), so the user grants it via the "Exact alarms" card on the Settings screen (or the "Alarms & reminders" system screen). If it's missing, the app checks `canScheduleExactAlarms()` and degrades gracefully to a plain inexact sleep.
 
 ### Settings
 The **Settings** page lets you configure:

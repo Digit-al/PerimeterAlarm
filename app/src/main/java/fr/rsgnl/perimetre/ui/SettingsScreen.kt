@@ -1,6 +1,11 @@
 package fr.rsgnl.perimetre.ui
 
+import android.app.AlarmManager
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -243,6 +248,50 @@ fun SettingsScreen(viewModel: AppViewModel) {
                         onChange = { viewModel.updateSettings(settings.copy(defaultSound = it)) },
                         showUseDefault = false
                     )
+                }
+            }
+
+            // Alarme exacte (réveil Doze) — Android 12+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // Recalculé à chaque recomposition (recomposition à l'ouverture de
+                // l'écran) : l'utilisateur revient ici après avoir accordé la
+                // permission dans les paramètres système.
+                val exactAlarmGranted = (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager)
+                    .canScheduleExactAlarms()
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(stringResource(R.string.settings_exact_alarm), style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            stringResource(R.string.settings_exact_alarm_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.settings_exact_alarm_granted),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (exactAlarmGranted) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface
+                            )
+                            if (!exactAlarmGranted) {
+                                Spacer(Modifier.width(12.dp))
+                                OutlinedButton(onClick = {
+                                    context.startActivity(
+                                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                }) {
+                                    Text(stringResource(R.string.settings_exact_alarm_request))
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

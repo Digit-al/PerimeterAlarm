@@ -51,21 +51,23 @@ Une alarme se compose de :
 Lorsqu'une alarme est **activée** et **dans sa période de validité**, la position est vérifiée à des intervalles dynamiques :
 
 - **toutes les 30 s** au début,
-- puis l'intervalle est calculé à partir de la **distance** qui vous sépare de la localisation et de votre **vitesse de rapprochement** :
+- puis l'intervalle est calculé à partir de la **distance à l'entrée du périmètre** (et non au centre) et de votre **vitesse de rapprochement** :
 
   ```
-  durée d'arrivée estimée  =  distance / vitesse de rapprochement
+  distance à l'entrée      =  max(0, distance au centre - rayon)
+  durée d'arrivée estimée  =  distance à l'entrée / vitesse de rapprochement
   prochain intervalle      =  durée d'arrivée estimée / 2
   ```
 
   borné entre un **minimum** et un **maximum** (par défaut 30 s et 5 min) :
+  - **à moins de 100 m de l'entrée** (ou à l'intérieur du périmètre) → vérifications à l'intervalle minimum (déclenchement immédiat attendu près de la frontière) ;
   - si vous vous rapprochez vite → vérifications plus fréquentes (jusqu'au minimum, 30 s) ;
   - si vous ne vous rapprochez pas → vérifications espacées (jusqu'au maximum, 5 min).
 
 - **Déclenchement** : quand la distance devient ≤ au rayon, une alarme (notification haute priorité + son + vibration) est émise. Une **hystérésis** de 15 % évite les re-déclenchements tant que vous restez dans la zone.
 
 ### Optimisation batterie (sommeil ciblé)
-Quand aucune alarme n'est active et dans sa période, le service **dort jusqu'au prochain début de période** (calculé à partir des jours + heures, jusqu'à 8 jours devant) au lieu de poller toutes les 30 s. Sauvegarder une alarme réveille le service immédiatement. Pour les sommeils de plus de 10 minutes, le service planifie en plus un **réveil résistant au Doze** (`AlarmManager.setAlarmClock`) : il se déclenche à l'heure même si l'appareil est en mode Doze, et une icône horloge est affichée dans la barre d'état tant que le réveil est en attente. Sur Android 12+ (ciblant le SDK 31+), cela nécessite la permission `SCHEDULE_EXACT_ALARM` (déclarée dans le manifest, accordée à l'installation, révocable par l'utilisateur) : si elle manque, l'app vérifie `canScheduleExactAlarms()` et dégrade gracieusement en sommeil inexact simple (l'écran Debug affiche l'état de la permission avec un bouton de demande).
+Quand aucune alarme n'est active et dans sa période, le service **dort jusqu'au prochain début de période** (calculé à partir des jours + heures, jusqu'à 8 jours devant) au lieu de poller toutes les 30 s. Sauvegarder une alarme réveille le service immédiatement. Pour les sommeils de plus de 10 minutes, le service planifie en plus un **réveil résistant au Doze** (`AlarmManager.setAlarmClock`) : il se déclenche à l'heure même si l'appareil est en mode Doze, et une icône horloge est affichée dans la barre d'état tant que le réveil est en attente. Sur Android 12+ (ciblant le SDK 31+), cela nécessite la permission `SCHEDULE_EXACT_ALARM` : elle est **refusée par défaut pour les apps ciblant le SDK 33+** (on cible le 34), l'utilisateur l'accorde donc via la carte « Alarmes exactes » de l'écran Réglages (ou l'écran système « Alarmes et rappels »). Si elle manque, l'app vérifie `canScheduleExactAlarms()` et dégrade gracieusement en sommeil inexact simple.
 
 ### Paramètres
 La page **Paramètres** permet de configurer :

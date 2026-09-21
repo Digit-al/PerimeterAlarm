@@ -300,7 +300,7 @@ class LocationMonitorService : Service() {
             }
             tracker.lastDistM = distance
             tracker.lastCheckMs = now
-            tracker.nextIntervalMs = if (first) minMs else computeInterval(tracker, minMs, maxMs)
+            tracker.nextIntervalMs = if (first) minMs else computeInterval(tracker, alarm, minMs, maxMs)
 
             // Déclenchement avec hystérésis (marge de 15 % pour éviter les re-déclenchements).
             if (distance <= alarm.radiusMeters) {
@@ -345,9 +345,17 @@ class LocationMonitorService : Service() {
         )
     }
 
-    private fun computeInterval(tracker: Tracker, minMs: Long, maxMs: Long): Long {
+    private fun computeInterval(tracker: Tracker, alarm: Alarm, minMs: Long, maxMs: Long): Long {
+        // Distance à l'ENTRÉE du périmètre (et non au centre) : avec un rayon de
+        // 200 m, l'ETA au centre est surestimée de rayon/vitesse (666 s à 0,3 m/s !)
+        // et l'intervalle reste bloqué au maximum même très près du périmètre.
+        val distToEntry = (tracker.lastDistM - alarm.radiusMeters).coerceAtLeast(0.0)
+        // À l'intérieur du périmètre ou très proche de l'entrée : vérification la
+        // plus rapide — c'est là que l'utilisateur attend un déclenchement immédiat
+        // (et une détection rapide de la sortie, via l'hystérésis).
+        if (distToEntry <= PROXIMITY_FAST_ZONE_M) return minMs
         if (tracker.lastSpeedMps <= SPEED_EPS) return maxMs
-        val etaSeconds = tracker.lastDistM / tracker.lastSpeedMps
+        val etaSeconds = distToEntry / tracker.lastSpeedMps
         val intervalMs = (etaSeconds / 2.0) * 1000.0
         return intervalMs.toLong().coerceIn(minMs, maxMs)
     }
@@ -516,6 +524,14 @@ class LocationMonitorService : Service() {
          * plus tôt — 10 min est une marge de sécurité conservative.
          */
         private const val LONG_SLEEP_THRESHOLD_MS = 10 * 60_000L
+
+        /**
+         * En-deçà de cette distance à l'entrée du périmètre, les vérifications
+         * tournent à l'intervalle minimum : c'est près de la frontière que
+         // l'utilisateur attend le déclenchement immédiat (la batterie ne pose
+         // problème que quand on est loin).
+         */
+        private const val PROXIMITY_FAST_ZONE_M = 100.0
 
         private const val WAKE_REQUEST_CODE = 200
         const val ACTION_WAKE = "fr.rsgnl.perimetre.ACTION_WAKE"

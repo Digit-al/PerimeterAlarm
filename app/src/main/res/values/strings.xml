@@ -105,6 +105,12 @@
     <string name="import_success">Configuration imported successfully</string>
     <string name="import_failed">Import failed: invalid file</string>
 
+    <!-- Exact alarm (Doze wake) -->
+    <string name="settings_exact_alarm">Exact alarms (Doze wake)</string>
+    <string name="settings_exact_alarm_hint">Lets the app wake up on time during long idle periods (no active alarm), even when the device is asleep. On Android 12+ this permission is denied by default for apps targeting SDK 33+, so grant it here if it\'s missing.</string>
+    <string name="settings_exact_alarm_granted">Granted</string>
+    <string name="settings_exact_alarm_request">Request</string>
+
     <!-- Debug -->
     <string name="debug_title">Debug</string>
     <string name="cd_clear_log">Clear log</string>

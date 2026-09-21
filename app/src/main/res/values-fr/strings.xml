@@ -105,6 +105,12 @@
     <string name="import_success">Configuration importée avec succès</string>
     <string name="import_failed">Échec de l\'import : fichier invalide</string>
 
+    <!-- Alarme exacte (réveil Doze) -->
+    <string name="settings_exact_alarm">Alarmes exactes (réveil Doze)</string>
+    <string name="settings_exact_alarm_hint">Permet à l\'application de se réveiller à l\'heure pile pendant les longs sommeils (aucune alarme active), même si l\'appareil est endormi. Sur Android 12+, cette permission est refusée par défaut pour les apps ciblant le SDK 33+ : autorisez-la ici si elle manque.</string>
+    <string name="settings_exact_alarm_granted">Accordée</string>
+    <string name="settings_exact_alarm_request">Demander</string>
+
     <!-- Debug -->
     <string name="debug_title">Debug</string>
     <string name="cd_clear_log">Effacer le journal</string>
