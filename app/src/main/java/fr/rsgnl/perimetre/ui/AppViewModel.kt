@@ -3,11 +3,13 @@ package fr.rsgnl.perimetre.ui
 import android.app.Application
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.AndroidViewModel
+import com.google.gson.Gson
 import fr.rsgnl.perimetre.PerimetreApp
 import fr.rsgnl.perimetre.data.Alarm
 import fr.rsgnl.perimetre.data.AlarmRepository
 import fr.rsgnl.perimetre.data.AppSettings
 import fr.rsgnl.perimetre.data.AppLanguage
+import fr.rsgnl.perimetre.data.ConfigExport
 import fr.rsgnl.perimetre.data.MonitorStatus
 import fr.rsgnl.perimetre.service.LocationMonitorService
 import androidx.lifecycle.viewModelScope
@@ -127,6 +129,59 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (language !in AppLanguage.SUPPORTED) return
         updateSettings(_settings.value.copy(language = language))
         AppCompatDelegate.setApplicationLocales(PerimetreApp.localesFor(language))
+    }
+
+    // ---- Export / Import ----
+
+    private val gson = Gson()
+
+    /**
+     * Sérialise la configuration actuelle (paramètres + alarmes) en JSON.
+     *
+     * @return Chaîne JSON, ou null si une erreur survient.
+     */
+    fun exportConfigJson(): String? = try {
+        val export = ConfigExport(
+            version = 1,
+            settings = _settings.value,
+            alarms = _alarms.value
+        )
+        gson.toJson(export)
+    } catch (e: Exception) {
+        null
+    }
+
+    /**
+     * Importe une configuration depuis une chaîne JSON.
+     * Remplace les alarmes existantes et met à jour les paramètres.
+     *
+     * @return true si l'import a réussi, false sinon.
+     */
+    fun importConfigJson(json: String): Boolean {
+        val export = try {
+            gson.fromJson(json, ConfigExport::class.java) ?: return false
+        } catch (e: Exception) {
+            return false
+        }
+        // Normalise (même logique que AlarmRepository.loadAlarms/loadSettings).
+        export.alarms.forEach { a ->
+            val snd = a.sound
+            a.sound = snd?.normalized() ?: fr.rsgnl.perimetre.data.SoundSettings()
+            a.radiusMeters = a.radiusMeters.coerceIn(1, Int.MAX_VALUE)
+        }
+        val s = export.settings
+        val snd = s.defaultSound
+        s.defaultSound = snd?.normalized() ?: fr.rsgnl.perimetre.data.SoundSettings(useDefault = false)
+        s.minIntervalSeconds = s.minIntervalSeconds.coerceAtLeast(5)
+        s.maxIntervalSeconds = s.maxIntervalSeconds.coerceAtLeast(s.minIntervalSeconds)
+        s.language = if (s.language in AppLanguage.SUPPORTED) s.language else AppLanguage.AUTO
+
+        repository.saveAlarms(export.alarms)
+        repository.saveSettings(s)
+        _alarms.value = export.alarms
+        _settings.value = s
+        refreshService()
+        return true
     }
 
     /** Démarre/arrête le service selon la présence d'alarmes activées. */

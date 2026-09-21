@@ -8,9 +8,9 @@
 ## Current State (last updated: 2026-09-21)
 
 **Branch**: `main`  
-**Last commit**: `18f2653` — fix: route alarm sound to system alarm stream (USAGE_ALARM)  
+**Last commit**: `1d3a695` — feat: export/import full config (settings + alarms) as JSON file  
 **Build**: ✅ assembles successfully (debug APK, `:app:assembleDebug`)  
-**User testing**: In progress — user reported alarm volume barely audible (media-stream routing bug, fixed in `18f2653`, awaiting validation on Android 17 (Pixel)).
+**User testing**: In progress — alarm volume fix (`18f2653`) awaiting validation on Android 17 (Pixel). New: config export/import (see below).
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -34,9 +34,11 @@
 - [x] App default ringtone title shown in alarm editor
 - [x] **Release build 1.0.0** — signing config, LGPL 3.0, tag `1.0.0`, F-Droid metadata (`fdroid/app.yml`) (`86c14b9`, `903d1b0`)
 - [x] **Alarm volume fix** — sound routed to `USAGE_ALARM` stream; per-alarm slider no longer a % of the media volume (`18f2653`)
+- [x] **Config export/import** — JSON file (SAF) containing all settings + alarms; buttons in Settings page
 
 ### What's pending / next
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
+- [ ] User validation of export/import on device
 - [ ] User feedback on one-shot alarm behavior
 - [ ] Push commits to `origin/main` after validation (see Build Environment)
 - [ ] Potential: WorkManager/AlarmManager for more reliable wake in Doze
@@ -47,6 +49,30 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-21 (config export/import)
+
+**Context**: User requested a way to backup/restore the full app configuration (settings + alarms) from the Settings page.
+
+**Implementation**:
+- `data/ConfigExport.kt` (new): `ConfigExport(version, settings, alarms)` data class for JSON serialization.
+- `AppViewModel.kt`: added `exportConfigJson(): String?` and `importConfigJson(json: String): Boolean`.
+  - Import normalizes fields same as `AlarmRepository` (null-safe sound, clamped intervals, validated language).
+  - Import replaces all existing alarms (full restore, not merge).
+- `SettingsScreen.kt`: new card « Backup & restore » with two `OutlinedButton`s:
+  - **Export**: launches SAF `CreateDocument("application/json")` → writes JSON to user-chosen file.
+  - **Import**: launches SAF `OpenDocument()` (filter `application/json`) → reads + applies, snackbar feedback.
+- `strings.xml` (EN + FR): 6 new strings for the section title, hint, buttons, and snackbar messages.
+
+**Decisions**:
+- SAF (Storage Access Framework) instead of direct file I/O → no storage permission needed, works on Android 10+ scoped storage.
+- Full replace on import (not merge) → simpler UX, predictable result. User can keep a backup before importing.
+- Version field in JSON (`version: 1`) → forward-compatible format.
+- Snackbar (not Toast) for import feedback → consistent with Material 3.
+
+**Build**: ✅ `:app:assembleDebug` BUILD SUCCESSFUL (JDK 21).
+
+---
 
 ### Session 2026-09-21 (alarm volume fix)
 
@@ -172,6 +198,8 @@ Full app from scratch. Commit: `b6cd9c4`
 | 07-18 | `READ_MEDIA_AUDIO` still in manifest | May be needed in future if we add a custom picker again; harmless otherwise |
 | 09-18 | LGPL-3.0 + F-Droid metadata (`fdroid/app.yml`) | Publish on F-Droid requires a free license + declarative build |
 | 09-21 | `AudioAttributes` `USAGE_ALARM` instead of `MediaPlayer.create()` | `create()` routes to the media stream: the app volume slider was a % of the *current media volume*, making the alarm barely audible at low media volume |
+| 09-21 | SAF for export/import (not direct file I/O) | No storage permission needed, works on scoped storage (Android 10+), user picks location |
+| 09-21 | Full replace on import (not merge) | Simpler UX, predictable result — user can keep a backup before importing |
 
 ---
 
@@ -210,6 +238,7 @@ Full app from scratch. Commit: `b6cd9c4`
 | `ui/components/Widgets.kt` | Reusable UI (RingtonePicker, SoundSettingsEditor, observeCurrentLocation) |
 | `data/Alarm.kt` | Data models (Alarm, SoundSettings, AppSettings) |
 | `data/AlarmRepository.kt` | Persistence (SharedPreferences + Gson) |
+| `data/ConfigExport.kt` | Export/import JSON structure (version, settings, alarms) |
 | `data/MonitorStatus.kt` | Service → UI status + oneShotFired flow |
 | `util/Geo.kt` | Haversine |
 | `util/TimeUtils.kt` | Period logic |

@@ -97,6 +97,14 @@
     <string name="settings_default_alarm_hint">Applied to alarms that have no custom settings.</string>
     <string name="settings_interval_tip">Tip: 1 minute = 60 s. The actual interval is estimated in real time from the distance to the alarm and your approach speed (estimated time of arrival / 2), and is clamped between the minimum and the maximum above.</string>
 
+    <!-- Backup / Restore -->
+    <string name="settings_backup">Backup &amp; restore</string>
+    <string name="settings_backup_hint">Export your settings and alarms to a JSON file, or import from a previously exported file.</string>
+    <string name="export_button">Export</string>
+    <string name="import_button">Import</string>
+    <string name="import_success">Configuration imported successfully</string>
+    <string name="import_failed">Import failed: invalid file</string>
+
     <!-- Debug -->
     <string name="debug_title">Debug</string>
     <string name="cd_clear_log">Clear log</string>

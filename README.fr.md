@@ -72,7 +72,8 @@ La page **Paramètres** permet de configurer :
 - l'**intervalle minimum** (secondes, défaut 30),
 - l'**intervalle maximum** (secondes, défaut 300 = 5 min),
 - la **langue** : *Auto* (suit la langue du téléphone), *Anglais* ou *Français*,
-- l'**alarme par défaut** : vibreur, volume et sonnerie (appliquée aux alarmes qui n'ont pas de réglage personnalisé).
+- l'**alarme par défaut** : vibreur, volume et sonnerie (appliquée aux alarmes qui n'ont pas de réglage personnalisé),
+- **Sauvegarde & restauration** : exporter toute la configuration (paramètres + alarmes) vers un fichier JSON, ou l'importer depuis un fichier précédemment exporté (Storage Access Framework — aucune permission supplémentaire requise).
 
 ### Page de debug
 Accessible via le bouton 🐞 de l'accueil. Elle **journalise l'état de toutes les alarmes toutes les 30 secondes**, mais uniquement tant que la page est visible ; chaque ligne commence par la **date/heure** et indique : actif, dans la période de validité, distance à l'entrée du périmètre, vitesse de rapprochement, et l'instant (ou le délai) du **prochain rafraîchissement** du service. Un compte à rebours affiche le délai avant la prochaine mise à jour.

@@ -72,7 +72,8 @@ The **Settings** page lets you configure:
 - the **minimum interval** (seconds, default 30),
 - the **maximum interval** (seconds, default 300 = 5 min),
 - the **language**: *Auto* (follows the device language), *English* or *Français*,
-- the **default alarm**: vibration, volume and ringtone (applied to alarms that have no custom settings).
+- the **default alarm**: vibration, volume and ringtone (applied to alarms that have no custom settings),
+- **Backup & restore**: export the full configuration (settings + all alarms) to a JSON file, or import from a previously exported file (Storage Access Framework — no extra permissions needed).
 
 ### Debug page
 Accessible via the 🐞 button on the home screen. It **logs the state of all alarms every 30 seconds**, but only while the page is visible; each line starts with the **date/time** and reports: active, within the validity period, distance to the perimeter entry, approach speed, and the time (or delay) of the **next refresh** of the service. A countdown shows the time before the next update.

@@ -97,6 +97,14 @@
     <string name="settings_default_alarm_hint">Appliquée aux alarmes qui n\'ont pas de réglage personnalisé.</string>
     <string name="settings_interval_tip">Astuce : 1 minute = 60 s. L\'intervalle réel est estimé en temps réel à partir de la distance qui vous sépare de l\'alarme et de votre vitesse de rapprochement (durée d\'arrivée estimée / 2), et est borné entre le minimum et le maximum ci-dessus.</string>
 
+    <!-- Backup / Restore -->
+    <string name="settings_backup">Sauvegarde &amp; restauration</string>
+    <string name="settings_backup_hint">Exportez vos paramètres et alarmes vers un fichier JSON, ou importez-les depuis un fichier précédemment exporté.</string>
+    <string name="export_button">Exporter</string>
+    <string name="import_button">Importer</string>
+    <string name="import_success">Configuration importée avec succès</string>
+    <string name="import_failed">Échec de l\'import : fichier invalide</string>
+
     <!-- Debug -->
     <string name="debug_title">Debug</string>
     <string name="cd_clear_log">Effacer le journal</string>

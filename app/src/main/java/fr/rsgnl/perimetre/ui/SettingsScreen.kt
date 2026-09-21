@@ -1,5 +1,9 @@
 package fr.rsgnl.perimetre.ui
 
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,24 +21,32 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -43,15 +55,62 @@ import fr.rsgnl.perimetre.R
 import fr.rsgnl.perimetre.data.AppSettings
 import fr.rsgnl.perimetre.data.AppLanguage
 import fr.rsgnl.perimetre.ui.components.SoundSettingsEditor
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: AppViewModel) {
     val settings by viewModel.settings.collectAsState()
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
     var minText by remember(settings.minIntervalSeconds) { mutableStateOf(settings.minIntervalSeconds.toString()) }
     var maxText by remember(settings.maxIntervalSeconds) { mutableStateOf(settings.maxIntervalSeconds.toString()) }
     var showLangPicker by remember { mutableStateOf(false) }
+
+    val coroutineScope = rememberCoroutineScope()
+    var snackbarMsg by remember { mutableStateOf<String?>(null) }
+
+    // Afficher le snackbar quand un message est prêt.
+    LaunchedEffect(snackbarMsg) {
+        snackbarMsg?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+            snackbarMsg = null
+        }
+    }
+
+    // Launcher export : crée un fichier JSON via SAF.
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val json = viewModel.exportConfigJson()
+            if (json != null) {
+                try {
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+                } catch (e: Exception) { /* ignoré */ }
+            }
+        }
+    }
+
+    // Launcher import : ouvre un fichier JSON via SAF.
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val success = try {
+                    val text = context.contentResolver.openInputStream(uri)
+                        ?.bufferedReader()?.use { it.readText() }
+                        ?: throw Exception("null")
+                    viewModel.importConfigJson(text)
+                } catch (e: Exception) {
+                    false
+                }
+                snackbarMsg = context.getString(if (success) R.string.import_success else R.string.import_failed)
+            }
+        }
+    }
 
     fun apply(minSec: Int, maxSec: Int) {
         val m = minSec.coerceIn(5, 3600)
@@ -69,7 +128,8 @@ fun SettingsScreen(viewModel: AppViewModel) {
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -183,6 +243,42 @@ fun SettingsScreen(viewModel: AppViewModel) {
                         onChange = { viewModel.updateSettings(settings.copy(defaultSound = it)) },
                         showUseDefault = false
                     )
+                }
+            }
+
+            // Export / Import de la configuration
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(stringResource(R.string.settings_backup), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        stringResource(R.string.settings_backup_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { exportLauncher.launch("perimetre_config.json") },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Filled.FileUpload, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.export_button))
+                        }
+                        OutlinedButton(
+                            onClick = { importLauncher.launch(arrayOf("application/json")) },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Filled.FileDownload, contentDescription = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.import_button))
+                        }
+                    }
                 }
             }
 
