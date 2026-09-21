@@ -29,9 +29,11 @@ on:
 jobs:
   upload:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      releases: write
+    # No explicit `permissions:` block: the dispatching token is a fine-grained
+    # PAT whose permission level is not expressible in the `permissions`
+    # context (explicit `releases: write` fails to parse). The workflow's
+    # GITHUB_TOKEN then inherits the token's default permissions, which
+    # include release writing.
     steps:
       - uses: actions/checkout@v4
 
