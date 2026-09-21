@@ -45,6 +45,7 @@ Ils sont la mémoire à long terme du projet — si la session expire (context e
 4. **PROMPT.md** — Mettre à jour uniquement si la stack, les dépendances ou le modèle de données ont évolué.
 
 5. **Git commit** avec un message descriptif (convention `type: description`).
+6. **Git push** vers `origin/main` (commande dans WORK_LOG.md → Build Environment).
 
 ---
 
