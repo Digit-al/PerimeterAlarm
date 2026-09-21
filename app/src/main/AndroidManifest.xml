@@ -13,6 +13,10 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!-- Requise depuis Android 12 (S) pour setAlarmClock (réveil Doze du long sommeil).
+         Accordée automatiquement à l'installation ; l'utilisateur peut la révoquer
+         (paramètres « Alarmes et rappels »). L'app dégrade gracieusement sans elle. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <uses-feature
         android:name="android.hardware.location.gps"

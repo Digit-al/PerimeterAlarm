@@ -8,10 +8,10 @@
 ## Current State (last updated: 2026-09-21)
 
 **Branch**: `main`  
-**Last commit**: `2261c13` — chore: set versionName to 1.0.0 (release tag 1.0.0 updated)  
+**Last commit**: `fix(exact-alarm)` — fix: SCHEDULE_EXACT_ALARM for setAlarmClock (see session log below)  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: GitHub release APK rebuilt from tag `1.0.0` = `2261c13` (versionName 1.0.0, versionCode 1, v2 signing) — see session log below.  
-**User testing**: In progress — alarm volume fix (`18f2653`) awaiting validation on Android 17 (Pixel). New: Doze-resistant wake for long sleeps (see below).
+**Release 1.0.0**: GitHub release APK rebuilt from tag `1.0.0` = `2261c13` (versionName 1.0.0, versionCode 1, v2 signing) — then a **hotfix APK** built (same versionCode 1, signature David R) to fix the Doze-wake crash. The tag/release APK is **outdated**: it does NOT contain the fix.  
+**User testing**: In progress — alarm volume fix (`18f2653`) awaiting validation on Android 17 (Pixel). The Doze-resistant wake **crashed on the user's device** (SecurityException: missing SCHEDULE_EXACT_ALARM) — fixed, awaiting validation with the hotfix APK.
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -42,7 +42,8 @@
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
 - [ ] User validation of export/import on device
 - [ ] User feedback on one-shot alarm behavior
-- [ ] User validation of Doze-resistant wake on device (clock icon during long sleeps, on-time wake)
+- [ ] User validation of Doze-resistant wake on device with the **hotfix APK** (clock icon during long sleeps, on-time wake, no crash after importing settings outside active periods)
+- [ ] Rebuild the GitHub release 1.0.0 APK once the hotfix is validated (tag `1.0.0` currently points to the pre-fix code `2261c13`)
 - [ ] Push commits to `origin/main` after validation (see Build Environment)
 - [ ] Potential: Tile server configuration (OSM usage policy for heavy use)
 - [ ] Potential: ProGuard rules for release
@@ -51,6 +52,24 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-21 (hotfix: SCHEDULE_EXACT_ALARM crash on Doze wake)
+
+**Context**: User reported: "la dernière APK release se ferme systématiquement" (the previous one, with alarm volume + import/export, worked). Deep dive with the user: **fresh install works, crash as soon as the old settings are reimported** (dialog "Périmètre Alarme s'arrête systématiquement", no clock icon in the status bar).
+
+**Root cause** (verified against AOSP `AlarmManagerService`, Android 17): `setAlarmClock` — used by the new Doze-resistant wake — **requires the `SCHEDULE_EXACT_ALARM` permission** for apps targeting SDK 31+ (we target 34). Without it, the system throws `SecurityException: Caller fr.rsgnl.perimetre needs to hold android.permission.SCHEDULE_EXACT_ALARM or android.permission.USE_EXACT_ALARM to set exact alarms.` Our manifest **did not declare it**, and the call ran in the monitor coroutine without a try/catch → unhandled exception → process death. The crash only manifested when the loop took the long-sleep branch (no alarm in its period, next start > 10 min away) — exactly the state after importing the user's config at 16:18 (Metzange 16:50–19:25 not started yet, Boulot 07:00–08:15 finished). A fresh install has no alarms → service never starts → no crash. The old APK (pre-Doze) never called `setAlarmClock` → worked with the same config.
+
+**Fix**:
+- `AndroidManifest.xml`: declares `android.permission.SCHEDULE_EXACT_ALARM` (not a runtime permission: on Android 12+ it is auto-granted at install when declared; user can revoke it via "Alarms & reminders").
+- `LocationMonitorService.scheduleWakeAlarm()`: checks `canScheduleExactAlarms()` (API 31+) before calling, and wraps the whole call in try/catch → without the permission the app degrades gracefully to a plain inexact coroutine sleep (previous behavior). `Log` statements + `TAG` added. Fixed the wrong doc comment ("no extra permission").
+- `DebugScreen`: new line showing the exact-alarm permission status (granted / not granted — tap to request via `Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM` / not required pre-Android 12). Recomputed on every recomposition (1 s tick) so a revocation + return is reflected. New strings EN/FR.
+- Docs: README.md, README.fr.md, PROMPT.md (permissions section + Doze section + edge case #9) corrected.
+
+**Build**: ✅ `:app:assembleDebug` + `:app:assembleRelease` BUILD SUCCESSFUL (JDK 21). Release APK verified: `SCHEDULE_EXACT_ALARM` in merged manifest, signature `CN=David R, O=RSGNL, C=FR` (same keystore → installs over the old version). APK: `app/build/outputs/apk/release/PerimeterAlarm-release.apk` (11.6 MB, versionName 1.0.0, versionCode 1).
+
+**Next**: user installs the hotfix APK (same signature → overwrite OK), reimports the config → should stay open. Then rebuild the GitHub release asset + move tag `1.0.0` if needed.
+
+---
 
 ### Session 2026-09-21 (release 1.0.0 APK update)
 

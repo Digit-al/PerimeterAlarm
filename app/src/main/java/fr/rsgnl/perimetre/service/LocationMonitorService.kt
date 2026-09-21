@@ -9,6 +9,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.util.Log
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -400,10 +401,13 @@ class LocationMonitorService : Service() {
      * si l'appareil est en mode Doze.
      *
      * `setAlarmClock` (API 23+) = exact + whileIdle + icône horloge dans la
-     * barre d'état, **sans permission supplémentaire** — contrairement à
-     * `setExactAndAllowWhileIdle` qui exige `SCHEDULE_EXACT_ALARM` (API 31+).
-     * L'icône horloge est un signal utile : l'utilisateur voit qu'un réveil
-     * de surveillance est planifié.
+     * barre d'état. Depuis Android 12 (S), une app ciblant le SDK 31+ doit
+     * détenir `SCHEDULE_EXACT_ALARM` (déclarée dans le manifest, accordée à
+     * l'installation, révocable par l'utilisateur dans les paramètres « Alarmes
+     * et rappels ») : sans elle, le système lève une `SecurityException`.
+     * On vérifie donc `canScheduleExactAlarms()` avant d'appeler, et on
+     * enrobe le tout en try/catch : le réveil exact est un bonus (résistance
+     * au Doze), il ne doit jamais tuer le processus.
      *
      * Quand l'alarme sonne, `WakeReceiver` réveille la boucle (requestWake)
      * ou redémarre le service si le processus a été tué. La boucle recalcule
@@ -411,8 +415,17 @@ class LocationMonitorService : Service() {
      * recalculée (auto-correction si le réveil a été décalé).
      */
     private fun scheduleWakeAlarm(fireAtMs: Long) {
-        val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        am.setAlarmClock(AlarmManager.AlarmClockInfo(fireAtMs, wakeAlarmPending), wakeAlarmPending)
+        try {
+            val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
+                Log.i(TAG, "SCHEDULE_EXACT_ALARM absente → réveil inexact (sommeil coroutine)")
+                return
+            }
+            am.setAlarmClock(AlarmManager.AlarmClockInfo(fireAtMs, wakeAlarmPending), wakeAlarmPending)
+            Log.i(TAG, "Réveil Doze planifié à " + java.time.Instant.ofEpochMilli(fireAtMs))
+        } catch (e: Exception) {
+            Log.w(TAG, "setAlarmClock a échoué (${e.javaClass.simpleName}: ${e.message}) → réveil inexact", e)
+        }
     }
 
     /** Annule l'alarme de réveil en attente (no-op si aucune n'est planifiée). */
@@ -483,6 +496,7 @@ class LocationMonitorService : Service() {
     }
 
     companion object {
+        private const val TAG = "LocationMonitorService"
         private const val CHANNEL_MONITOR = "perimetre_monitor"
         private const val CHANNEL_ALARM = "perimetre_alarm"
         private const val NOTIF_ID_MONITOR = 100

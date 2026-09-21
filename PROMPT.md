@@ -139,7 +139,7 @@ while (true) {
 
 When the loop must sleep for a long time (no active alarm in period — hours/days until the next period start), a plain coroutine delay can be delayed if the device enters Android **Doze**. To make these wakes reliable:
 
-- If the computed sleep exceeds **10 minutes** (`LONG_SLEEP_THRESHOLD_MS`), the service schedules a broadcast alarm with **`AlarmManager.setAlarmClock`** (API 23+): exact, **fires during Doze**, and shows a **clock icon in the status bar** while pending — with **no extra permission** (unlike `setExactAndAllowWhileIdle`, which requires `SCHEDULE_EXACT_ALARM` on API 31+).
+- If the computed sleep exceeds **10 minutes** (`LONG_SLEEP_THRESHOLD_MS`), the service schedules a broadcast alarm with **`AlarmManager.setAlarmClock`** (API 23+): exact, **fires during Doze**, and shows a **clock icon in the status bar** while pending. **Caveat:** on Android 12+ (targeting SDK 31+) `setAlarmClock` requires the `SCHEDULE_EXACT_ALARM` permission (declared in the manifest, auto-granted at install, user-revocable) or it throws `SecurityException`. The service therefore checks `canScheduleExactAlarms()` before calling and wraps the call in try/catch: without the permission it degrades to a plain inexact coroutine sleep. The Debug screen shows the permission status and offers `Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM` when revoked.
 - A static receiver (`WakeReceiver`, manifest-registered for `ACTION_WAKE`) handles the broadcast:
   - service still running → `requestWake()` interrupts the loop's sleep via the wake `Channel`;
   - process killed → restarts the service if at least one alarm is enabled (same logic as the boot receiver).
@@ -259,9 +259,12 @@ Single-activity app with a `sealed class Screen` (Home, Editor, Settings, Debug)
 <uses-permission android:name="android.permission.WAKE_LOCK" />
 <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 <uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 ```
 
-Requested at runtime on first launch via `ActivityResultContracts.RequestMultiplePermissions`.
+- `SCHEDULE_EXACT_ALARM` is **not** a runtime permission: on Android 12+ (targeting SDK 31+) it is auto-granted at install when declared (user can revoke it via the "Alarms & reminders" settings). It is required by `AlarmManager.setAlarmClock` (Doze-resistant wake) — the service checks `canScheduleExactAlarms()` before calling and degrades gracefully without it.
+
+Requested at runtime on first launch via `ActivityResultContracts.RequestMultiplePermissions` (runtime ones only).
 
 ---
 
@@ -356,7 +359,7 @@ app/src/main/java/fr/rsgnl/perimetre/
 
 8. **First check**: The first check for each alarm always uses the minimum interval (30s by default) since there's no speed estimate yet.
 
-9. **Doze mode**: Long sleeps (hours/days, no active alarm) are backed by an `AlarmManager.setAlarmClock` broadcast alarm — exact, fires during Doze, status-bar clock icon, **no extra permission** (chosen over `setExactAndAllowWhileIdle` to avoid the `SCHEDULE_EXACT_ALARM` flow on API 31+ / targetSdk 34). `WakeReceiver` wakes the loop via `requestWake()`, or restarts the service if the process was killed. Only applies when the computed sleep exceeds 10 minutes.
+9. **Doze mode**: Long sleeps (hours/days, no active alarm) are backed by an `AlarmManager.setAlarmClock` broadcast alarm — exact, fires during Doze, status-bar clock icon. On API 31+ / targetSdk 31+ this needs `SCHEDULE_EXACT_ALARM` (manifest-declared, auto-granted, revocable); the service guards with `canScheduleExactAlarms()` + try/catch and degrades to an inexact coroutine sleep when absent (a missing permission must never crash the app). `WakeReceiver` wakes the loop via `requestWake()`, or restarts the service if the process was killed. Only applies when the computed sleep exceeds 10 minutes.
 
 10. **Foreground service type**: `FOREGROUND_SERVICE_TYPE_LOCATION` required on Android 10+ to declare location usage and show the system location indicator.
 

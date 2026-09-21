@@ -65,7 +65,7 @@ When an alarm is **enabled** and **within its validity period**, the position is
 - **Triggering**: when the distance becomes ≤ the radius, an alarm (high-priority notification + sound + vibration) is raised. A **15 % hysteresis** prevents re-triggering while you stay inside the zone.
 
 ### Battery optimization (targeted sleeping)
-When no alarm is active and within its period, the service **sleeps until the next period start** (computed with the day-of-week + times, up to 8 days ahead) instead of polling every 30 s. Saving an alarm wakes the service immediately. For sleeps longer than 10 minutes, the service additionally schedules a **Doze-resistant wake** (`AlarmManager.setAlarmClock`): it fires on time even if the device is in Doze, and a clock icon is shown in the status bar while the wake is pending — no extra permission required.
+When no alarm is active and within its period, the service **sleeps until the next period start** (computed with the day-of-week + times, up to 8 days ahead) instead of polling every 30 s. Saving an alarm wakes the service immediately. For sleeps longer than 10 minutes, the service additionally schedules a **Doze-resistant wake** (`AlarmManager.setAlarmClock`): it fires on time even if the device is in Doze, and a clock icon is shown in the status bar while the wake is pending. On Android 12+ (targeting SDK 31+) this requires the `SCHEDULE_EXACT_ALARM` permission (declared in the manifest, auto-granted at install, user-revocable): if it's missing, the app checks `canScheduleExactAlarms()` and degrades gracefully to a plain inexact sleep (and the Debug screen shows the permission status with a request button).
 
 ### Settings
 The **Settings** page lets you configure:

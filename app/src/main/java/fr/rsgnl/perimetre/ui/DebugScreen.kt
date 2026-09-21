@@ -1,9 +1,16 @@
 package fr.rsgnl.perimetre.ui
 
+import android.app.AlarmManager
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -149,6 +156,33 @@ fun DebugScreen(viewModel: AppViewModel) {
                     stringResource(R.string.debug_help),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                // Permission d'alarme exacte (réveil Doze du long sommeil) :
+                // requise depuis Android 12 (S) pour setAlarmClock.
+                // Recalculée à chaque recomposition (tick 1 s) : l'utilisateur
+                // peut la révoquer depuis les paramètres et revenir ici.
+                val isSOrNewer = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                val exactAlarmGranted = isSOrNewer &&
+                    (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).canScheduleExactAlarms()
+                val exactAlarmStatus = when {
+                    !isSOrNewer -> stringResource(R.string.debug_exact_alarm_na)
+                    exactAlarmGranted -> stringResource(R.string.debug_exact_alarm_granted)
+                    else -> stringResource(R.string.debug_exact_alarm_denied)
+                }
+                Text(
+                    text = stringResource(R.string.debug_exact_alarm_label) + exactAlarmStatus,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (exactAlarmGranted) MaterialTheme.colorScheme.onSurfaceVariant
+                            else MaterialTheme.colorScheme.primary,
+                    modifier = if (isSOrNewer && !exactAlarmGranted) Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            context.startActivity(
+                                Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        }
+                    else Modifier
                 )
                 Spacer(Modifier.height(12.dp))
             }
