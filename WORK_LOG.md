@@ -8,10 +8,10 @@
 ## Current State (last updated: 2026-09-21)
 
 **Branch**: `main`  
-**Last commit**: `5ad6089` — chore: point tag 1.0.0 and F-Droid build at the SCHEDULE_EXACT_ALARM fix (a5c7200)  
+**Last commit**: `7f40c5b` — fix: dynamic interval uses distance to perimeter entry + exact-alarm card in Settings  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: tag `1.0.0` = `a5c7200` (the SCHEDULE_EXACT_ALARM fix). GitHub release asset replaced with the fixed APK (11.6 MB, versionName 1.0.0, versionCode 1, signature David R). Release notes updated. F-Droid `fdroid/app.yml` points at `a5c7200`.  
-**User testing**: Doze-resistant wake **validated on device** (2026-09-21 evening) — the crash after config import is gone, app stays open during the long sleep until the next period. Remaining validation: morning alarm (Boulot 07:00–08:15) triggering correctly on time tomorrow.
+**Release 1.0.0**: tag `1.0.0` = `a5c7200` (the SCHEDULE_EXACT_ALARM crash fix) — **outdated again**: `7f40c5b` (interval fix + exact-alarm card) is not in it. GitHub asset + F-Droid ref must be refreshed once the interval fix is validated on device.  
+**User testing**: Doze crash validated fixed (2026-09-21). Two more issues found on device and fixed in `7f40c5b` (hotfix APK shared in chat): (1) interval pinned at max near the perimeter (ETA computed from center, not entry point) — alarm didn't ring on zone entry; (2) SCHEDULE_EXACT_ALARM denied by default for targetSdk 33+ → user must grant it (new card in Settings). Awaiting on-device validation of `7f40c5b`.
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -44,7 +44,9 @@
 - [ ] User feedback on one-shot alarm behavior
 - [x] User validation of Doze-resistant wake on device with the **hotfix APK** (no crash after importing settings outside active periods, app stays open during the long sleep)
 - [x] Rebuild the GitHub release 1.0.0 APK with the hotfix — tag `1.0.0` moved to `a5c7200`, asset replaced, F-Droid ref updated (`5ad6089`)
+- [ ] User validation of `7f40c5b` on device: alarm rings on zone entry (fast checks near the perimeter) + user grants the exact-alarm permission from the Settings card
 - [ ] User validation of the morning alarm (Boulot, 07:00–08:15) triggering on time after the Doze wake (first full cycle test)
+- [ ] Refresh GitHub release asset + tag `1.0.0` + F-Droid ref to `7f40c5b` once validated
 - [ ] Push commits to `origin/main` after validation (see Build Environment)
 - [ ] Potential: Tile server configuration (OSM usage policy for heavy use)
 - [ ] Potential: ProGuard rules for release
@@ -53,6 +55,24 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-21 (interval fix + exact-alarm permission card)
+
+**Context**: On-device testing in the evening (17:48, near Metzange): "l'alarme n'a pas sonné à l'entrée dans la zone" — Debug showed `dist.entrée=60 m`, `vitesse=0.3 m/s`, `prochain=+264 s` (unreasonable so close to the perimeter). The Debug screen also showed `Alarme exacte : non accordée`.
+
+**Bug 1 — interval pinned at max near the perimeter**: `computeInterval()` computed the ETA from the distance to the **center** of the circle. With a 200 m radius, ETA = (dist_to_entry + 200)/speed — overestimated by 200/0.3 = 666 s → interval clamped to the 300 s max even 60 m from the boundary. Repro from the screenshot: at the last check, dist to center ≈ 271 m → ETA ≈ 903 s → interval 300 s → next check 17:53:03 (+264 s after the snapshot). The alarm would have rung ~3 min after actual entry — "not on entry" from the user's point of view.
+**Fix** (`7f40c5b`): ETA now uses the **distance to the entry point** `max(0, dist_to_center - radius)`; within **100 m** of the entry (`PROXIMITY_FAST_ZONE_M`) — or inside the perimeter — checks run at the **minimum** interval (fast trigger near the boundary + fast exit detection via hysteresis).
+
+**Bug 2 — SCHEDULE_EXACT_ALARM "non accordée"**: verified in AOSP that the compat change `SCHEDULE_EXACT_ALARM_DENIED_BY_DEFAULT` is `@EnabledSince(targetSdkVersion = TIRAMISU)` — for apps targeting SDK 33+ (we target 34) the permission is **denied by default** even when declared; the user must allow it explicitly ("Alarms & reminders"). The crash guard degraded gracefully (no crash — the guard worked), but the Doze wake was inexact. (The "auto-granted at install" doc applies to older targets / is overridden by this change.)
+**Fix** (`7f40c5b`): new card on the **Settings screen** — "Alarmes exactes (réveil Doze)" with the live permission status + a request button (`Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM`). Debug-screen line already existed.
+
+**Docs**: PROMPT.md (interval logic, permissions section, Doze sections, edge case #9), README.md + README.fr.md (dynamic check logic + Doze paragraph).
+
+**Build**: ✅ debug + release BUILD SUCCESSFUL. Release APK verified: versionName 1.0.0, versionCode 1, signature David R. Hotfix APK shared in chat.
+
+**Next**: user installs the hotfix, grants the exact-alarm permission from the Settings card, re-tests zone entry at Metzange. Then refresh the GitHub release asset + tag `1.0.0` + F-Droid ref to `7f40c5b`.
+
+---
 
 ### Session 2026-09-21 (hotfix: SCHEDULE_EXACT_ALARM crash on Doze wake)
 
