@@ -15,7 +15,7 @@ Ils sont la mémoire à long terme du projet — si la session expire (context e
 | `README.md` | Documentation technique EN (architecture, features, setup) | Toute feature ajoutée/retirée, changement d'architecture, nouveau prérequis |
 | `README.fr.md` | Documentation technique FR (miroir exact de README.md) | **À chaque modif de README.md** — les deux doivent rester synchrones |
 | `WORK_LOG.md` | Journal chronologique de l'état du projet | **TOUTES les sessions** — c'est LE point de reprise |
-| `PROMPT.md` | Prompt de reconstruction complète du projet from scratch | Toute feature ajoutée, changement de stack, de dépendances ou de modèle de données |
+| `PROMPT.md` | Prompt de reconstruction complète du projet from scratch | **Toute modification du comportement de l'application** (nouvelle feature, bug fix changeant la logique, refactor comportemental, changement de stack/dépendances/modèle) |
 
 ---
 
