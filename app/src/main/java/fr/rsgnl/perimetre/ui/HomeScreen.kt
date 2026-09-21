@@ -11,18 +11,28 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import android.app.AlarmManager
+import android.content.Context
+import android.content.Intent
 import android.location.Location
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -72,9 +82,25 @@ fun HomeScreen(viewModel: AppViewModel) {
     var isScreenStarted by remember {
         mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
     }
+
+    // Permission SCHEDULE_EXACT_ALARM (réveil Doze) : sous Android 12+, elle
+    // est refusée par défaut pour les apps ciblant le SDK 33+ — l'app affiche
+    // donc automatiquement un avertissement tant qu'elle n'est pas accordée.
+    // Ré-évaluée à chaque retour au premier plan (l'utilisateur vient de
+    // l'accorder dans l'écran système dédié).
+    fun exactAlarmGranted(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        return (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager)
+            .canScheduleExactAlarms()
+    }
+    var exactAlarmGranted by remember { mutableStateOf(exactAlarmGranted()) }
+    var exactAlarmDismissed by remember { mutableStateOf(false) }
+    val exactAlarmNeedsPrompt = !exactAlarmGranted && !exactAlarmDismissed
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, _ ->
             isScreenStarted = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+            exactAlarmGranted = exactAlarmGranted()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -140,6 +166,59 @@ fun HomeScreen(viewModel: AppViewModel) {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                if (exactAlarmNeedsPrompt) {
+                    item(key = "exact_alarm_prompt") {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Filled.Alarm,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                    Spacer(Modifier.size(8.dp))
+                                    Text(
+                                        stringResource(R.string.home_exact_alarm_title),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(onClick = { exactAlarmDismissed = true }) {
+                                        Icon(
+                                            Icons.Filled.Close,
+                                            contentDescription = stringResource(R.string.cd_dismiss),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    stringResource(R.string.home_exact_alarm_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Button(
+                                    onClick = {
+                                        context.startActivity(
+                                            Intent(
+                                                Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                                Uri.parse("package:${context.packageName}")
+                                            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 8.dp)
+                                ) {
+                                    Text(stringResource(R.string.home_exact_alarm_action))
+                                }
+                            }
+                        }
+                    }
+                }
                 items(alarms, key = { it.id }) { alarm ->
                     AlarmRow(alarm = alarm, viewModel = viewModel, currentLoc = currentLoc)
                 }

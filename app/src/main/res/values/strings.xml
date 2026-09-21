@@ -65,6 +65,10 @@
     <string name="editor_one_shot">One-time</string>
     <string name="editor_one_shot_hint">Manually activated — deactivates automatically after the first trigger.</string>
     <string name="home_one_shot_label">One-time</string>
+    <string name="home_exact_alarm_title">Exact alarms permission</string>
+    <string name="home_exact_alarm_hint">Needed for an on-time wake-up while the device is asleep (between alarm periods). Tapping below opens a system screen with the switch to enable.</string>
+    <string name="home_exact_alarm_action">Enable</string>
+    <string name="cd_dismiss">Dismiss</string>
     <string name="editor_time_to">to</string>
     <string name="editor_sound">Ringtone &amp; vibration</string>
     <string name="editor_enabled">Alarm enabled</string>

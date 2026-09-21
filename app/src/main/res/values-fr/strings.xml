@@ -65,6 +65,10 @@
     <string name="editor_one_shot">Ponctuelle</string>
     <string name="editor_one_shot_hint">Activée manuellement — se désactive automatiquement après le premier déclenchement.</string>
     <string name="home_one_shot_label">Ponctuelle</string>
+    <string name="home_exact_alarm_title">Permission « Alarmes exactes »</string>
+    <string name="home_exact_alarm_hint">Nécessaire pour un réveil à l\'heure pile quand l\'appareil est endormi (entre les périodes d\'alarme). Le bouton ci-dessous ouvre un écran système avec l\'interrupteur à activer.</string>
+    <string name="home_exact_alarm_action">Activer</string>
+    <string name="cd_dismiss">Masquer</string>
     <string name="editor_time_to">à</string>
     <string name="editor_sound">Sonnerie &amp; vibration</string>
     <string name="editor_enabled">Alarme activée</string>
