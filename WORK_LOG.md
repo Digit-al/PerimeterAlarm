@@ -8,8 +8,9 @@
 ## Current State (last updated: 2026-09-21)
 
 **Branch**: `main`  
-**Last commit**: `2dee7be` — feat: Doze-resistant wake for long sleeps (setAlarmClock + WakeReceiver)  
-**Build**: ✅ assembles successfully (debug APK, `:app:assembleDebug`)  
+**Last commit**: `2261c13` — chore: set versionName to 1.0.0 (release tag 1.0.0 updated)  
+**Build**: ✅ assembles successfully (debug + release APK)  
+**Release 1.0.0**: GitHub release APK rebuilt from tag `1.0.0` = `2261c13` (versionName 1.0.0, versionCode 1, v2 signing) — see session log below.  
 **User testing**: In progress — alarm volume fix (`18f2653`) awaiting validation on Android 17 (Pixel). New: Doze-resistant wake for long sleeps (see below).
 
 ### What's done
@@ -50,6 +51,21 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-21 (release 1.0.0 APK update)
+
+**Context**: User asked: "mets à jour l'APK dans le tag 1.0.0". The GitHub release 1.0.0 carried an APK built from the old tag commit `87873aa` — while the code had since evolved (alarm volume fix, config export/import, Doze-resistant wake). The release notes even advertised export/import, which the APK didn't contain.
+
+**Actions**:
+- `2261c13` — `versionName "1.0"` → `"1.0.0"` (consistency between the APK and the tag/release name). `versionCode` kept at 1 (in-place update of the same release; a direct install with the same signature overwrites fine).
+- Tag `1.0.0` force-moved `87873aa` → `2261c13` and pushed.
+- Release APK rebuilt (`:app:assembleRelease`) and verified: `versionName=1.0.0`, `versionCode=1`, signature OK (APK Signature Scheme v2, `CN=David R, O=RSGNL, C=FR`).
+- GitHub release: old asset deleted, new APK uploaded (same download URL), release notes updated (added Doze-resistant wake + build info).
+- `fdroid/app.yml`: fixed stale commit reference (`903d1b0` — no longer existed in the repo) → `2261c13` (tag 1.0.0).
+
+**Build**: ✅ `:app:assembleRelease` BUILD SUCCESSFUL (JDK 21). APK: `app/build/outputs/apk/release/PerimeterAlarm-release.apk` (11.6 MB).
+
+---
 
 ### Session 2026-09-21 (Doze-resistant wake for long sleeps)
 
