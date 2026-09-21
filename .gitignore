@@ -18,4 +18,5 @@ local.properties
 app/build/
 *.apk
 *.aab
+keystore.properties
 david-release.keystore

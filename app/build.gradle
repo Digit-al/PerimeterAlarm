@@ -16,12 +16,18 @@ android {
         archivesBaseName = "PerimeterAlarm"
     }
 
+    def keystoreProps = new Properties()
+    def keystorePropsFile = rootProject.file('keystore.properties')
+    if (keystorePropsFile.exists()) {
+        keystoreProps.load(new FileInputStream(keystorePropsFile))
+    }
+
     signingConfigs {
         release {
-            storeFile file("../david-release.keystore")
-            storePassword "CHANGE_ME"
-            keyAlias "perimeter_alarm"
-            keyPassword "CHANGE_ME"
+            storeFile rootProject.file(keystoreProps.getProperty('storeFile', 'david-release.keystore'))
+            storePassword keystoreProps.getProperty('storePassword', '')
+            keyAlias keystoreProps.getProperty('keyAlias', '')
+            keyPassword keystoreProps.getProperty('keyPassword', '')
         }
     }
 
