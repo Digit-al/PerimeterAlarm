@@ -8,10 +8,10 @@
 ## Current State (last updated: 2026-09-21)
 
 **Branch**: `main`  
-**Last commit**: `fix(exact-alarm)` — fix: SCHEDULE_EXACT_ALARM for setAlarmClock (see session log below)  
+**Last commit**: `5ad6089` — chore: point tag 1.0.0 and F-Droid build at the SCHEDULE_EXACT_ALARM fix (a5c7200)  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: GitHub release APK rebuilt from tag `1.0.0` = `2261c13` (versionName 1.0.0, versionCode 1, v2 signing) — then a **hotfix APK** built (same versionCode 1, signature David R) to fix the Doze-wake crash. The tag/release APK is **outdated**: it does NOT contain the fix.  
-**User testing**: In progress — alarm volume fix (`18f2653`) awaiting validation on Android 17 (Pixel). The Doze-resistant wake **crashed on the user's device** (SecurityException: missing SCHEDULE_EXACT_ALARM) — fixed, awaiting validation with the hotfix APK.
+**Release 1.0.0**: tag `1.0.0` = `a5c7200` (the SCHEDULE_EXACT_ALARM fix). GitHub release asset replaced with the fixed APK (11.6 MB, versionName 1.0.0, versionCode 1, signature David R). Release notes updated. F-Droid `fdroid/app.yml` points at `a5c7200`.  
+**User testing**: Doze-resistant wake **validated on device** (2026-09-21 evening) — the crash after config import is gone, app stays open during the long sleep until the next period. Remaining validation: morning alarm (Boulot 07:00–08:15) triggering correctly on time tomorrow.
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -42,8 +42,9 @@
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
 - [ ] User validation of export/import on device
 - [ ] User feedback on one-shot alarm behavior
-- [ ] User validation of Doze-resistant wake on device with the **hotfix APK** (clock icon during long sleeps, on-time wake, no crash after importing settings outside active periods)
-- [ ] Rebuild the GitHub release 1.0.0 APK once the hotfix is validated (tag `1.0.0` currently points to the pre-fix code `2261c13`)
+- [x] User validation of Doze-resistant wake on device with the **hotfix APK** (no crash after importing settings outside active periods, app stays open during the long sleep)
+- [x] Rebuild the GitHub release 1.0.0 APK with the hotfix — tag `1.0.0` moved to `a5c7200`, asset replaced, F-Droid ref updated (`5ad6089`)
+- [ ] User validation of the morning alarm (Boulot, 07:00–08:15) triggering on time after the Doze wake (first full cycle test)
 - [ ] Push commits to `origin/main` after validation (see Build Environment)
 - [ ] Potential: Tile server configuration (OSM usage policy for heavy use)
 - [ ] Potential: ProGuard rules for release
@@ -68,6 +69,8 @@
 **Build**: ✅ `:app:assembleDebug` + `:app:assembleRelease` BUILD SUCCESSFUL (JDK 21). Release APK verified: `SCHEDULE_EXACT_ALARM` in merged manifest, signature `CN=David R, O=RSGNL, C=FR` (same keystore → installs over the old version). APK: `app/build/outputs/apk/release/PerimeterAlarm-release.apk` (11.6 MB, versionName 1.0.0, versionCode 1).
 
 **Next**: user installs the hotfix APK (same signature → overwrite OK), reimports the config → should stay open. Then rebuild the GitHub release asset + move tag `1.0.0` if needed.
+
+**Validation + release update (same day, evening)**: user confirmed the crash is gone (deactivated the afternoon alarm which was in its active period, kept the morning one — app stays open). Release 1.0.0 then finalized: tag `1.0.0` moved `2261c13` → `a5c7200`, GitHub asset replaced (new asset id 579278040), release notes updated, `fdroid/app.yml` → `a5c7200` (commit `5ad6089`).
 
 ---
 
