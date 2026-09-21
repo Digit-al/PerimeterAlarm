@@ -8,9 +8,9 @@
 ## Current State (last updated: 2026-09-21)
 
 **Branch**: `main`  
-**Last commit**: `0bdfcb0` — feat: automatic exact-alarm permission prompt on the Home screen  
+**Last commit**: `2438e30` — ci: drop explicit permissions block (fine-grained PAT level not expressible)  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: tag `1.0.0` = `a5c7200` (the SCHEDULE_EXACT_ALARM crash fix) — **outdated**: `7f40c5b` (interval fix + exact-alarm card) and the distance-cap fix are not in it. GitHub asset + F-Droid ref must be refreshed once validated on device.  
+**Release 1.0.0**: tag `1.0.0` = `4bc5bee` (final — includes all interval fixes + permission prompt). GitHub release notes updated. **APK asset pending**: the old asset was deleted but the new one is NOT yet attached — the fine-grained PAT (`~/.github_token`) has **Releases: Maintain** (can create/update releases, but asset upload → 404 via REST / 403 via Actions). Options for David: (a) drag & drop the APK (in chat) on https://github.com/Digit-al/PerimeterAlarm/releases/tag/1.0.0 ; or (b) set the token's "Releases" permission to **Read and write** (github.com/settings/personal-access-tokens) and re-run the upload. Fallbacks in place: `release-apk` branch (APK committed) + `workflow_dispatch` workflow (`ci: upload release asset`). `fdroid/app.yml` → `4bc5bee`.  
 **User testing**: Doze crash validated fixed (2026-09-21). Issues found on device and fixed: (1) interval pinned at max near the perimeter → `7f40c5b` (ETA from entry point + 100 m fast zone); (2) SCHEDULE_EXACT_ALARM denied by default for targetSdk 33+ → `7f40c5b` (Settings card); (3) **stopped/slow user near the perimeter** (traffic jam, chat on foot) still got the 5-min max interval → new distance-based cap (interval ≤ time to cover the remaining distance at a 15 m/s reference resume speed; ≈30 s below 600 m, ≈1 min at 1 km, ≈2 min at 2 km). Awaiting on-device validation of the interval hotfixes + exact-alarm permission grant.
 
 ### What's done
@@ -55,6 +55,27 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-21 (release 1.0.0 refreshed to 4bc5bee — asset upload blocked by token level)
+
+**Context**: David: "Ok pour rafraîchir la release" (+ screenshot 16:18 from the previous hotfix build).
+
+**Actions**:
+- Release APK rebuilt at HEAD and verified (11.6 MB, versionName 1.0.0, versionCode 1, signature David R).
+- Tag `1.0.0` force-moved `a5c7200` → `4bc5bee` and pushed.
+- GitHub release 1.0.0 (id 392938396): release notes updated (interval fixes + permission prompt); old APK asset (id 579278040) **deleted**.
+- `fdroid/app.yml`: commit ref `a5c7200` → `4bc5bee`.
+
+**Asset upload saga (unresolved — awaiting David)**: the new APK is NOT yet attached to the release.
+- `POST /releases/{id}/assets` → **404** with the fine-grained PAT `~/.github_token`, even on a freshly created draft release. Probes: token has Contents:Read+write (201/200 on contents API) and can create/update releases (POST /releases 201, PATCH 200) — but the asset sub-route 404s.
+- Workaround attempt: GitHub Actions workflow (`ci: upload release asset`, `workflow_dispatch`) on a `release-apk` branch with the APK committed. Run 35647211634 → **403 "Resource not accessible by integration"** on the uploads.github.com asset POST.
+- **Diagnosis**: the token's Releases permission is at **Maintain** level (create/update releases yes, upload assets no; explicit `permissions: {releases: write}` in a workflow fails to parse → "Unexpected value 'releases'" — hence the `ci: drop explicit permissions block` commit `2438e30`).
+- **Fix options (asked David)**: (a) drag & drop the APK from chat onto the release page (30 s); or (b) bump the token's Releases permission to **Read and write** → then re-run `gh release upload` (or the API directly).
+- Cleanup done: draft release `1.0.0-test` (id 393231898) deleted, its tag gone; only tag `1.0.0` remains. Two stale failed "push" ghost runs (from the first workflow version) left in Actions history. The `release-apk` branch is kept for a possible workflow re-run (delete once the asset is attached).
+
+**Next**: David attaches the APK (option a or b) → verify the asset on the release → delete `release-apk` branch → done.
+
+---
 
 ### Session 2026-09-21 (automatic exact-alarm permission prompt on Home screen)
 
