@@ -158,41 +158,43 @@ class LocationMonitorService : Service() {
     private suspend fun requestSingleFix(): Location? {
         // Tente d'abord le GPS, puis le réseau.
         for (provider in availableProviders()) {
-            val fix = withContext(Dispatchers.Main) {
-                suspendCancellableCoroutine<Location?> { cont ->
-                    lateinit var removeFn: () -> Unit
-                    val listener = object : LocationListener {
-                        override fun onLocationChanged(location: Location) {
-                            latestLocation.set(location)
-                            removeFn()
-                            if (!cont.isCompleted) cont.resume(location)
+            val fix = withTimeoutOrNull(FIX_TIMEOUT_MS) {
+                withContext(Dispatchers.Main) {
+                    suspendCancellableCoroutine<Location?> { cont ->
+                        lateinit var removeFn: () -> Unit
+                        val listener = object : LocationListener {
+                            override fun onLocationChanged(location: Location) {
+                                latestLocation.set(location)
+                                removeFn()
+                                if (!cont.isCompleted) cont.resume(location)
+                            }
+
+                            @Deprecated("Deprecated in Java")
+                            override fun onProviderEnabled(provider: String) {}
+
+                            @Deprecated("Deprecated in Java")
+                            override fun onProviderDisabled(provider: String) {}
                         }
-
-                        @Deprecated("Deprecated in Java")
-                        override fun onProviderEnabled(provider: String) {}
-
-                        @Deprecated("Deprecated in Java")
-                        override fun onProviderDisabled(provider: String) {}
-                    }
-                    removeFn = {
-                        try { locationManager.removeUpdates(listener) }
-                        catch (ignored: Exception) { }
-                    }
-                    try {
-                        locationManager.requestLocationUpdates(
-                            provider,
-                            0L,   // pas de minTime (on veut un fix rapide)
-                            0f,    // pas de minDistance
-                            listener,
-                            Looper.getMainLooper()
-                        )
-                    } catch (e: Exception) {
-                        if (!cont.isCompleted) cont.resume(null)
-                        return@suspendCancellableCoroutine
-                    }
-                    // Si le contexte est annulé (timeout), on retire le listener.
-                    cont.invokeOnCancellation {
-                        mainHandler.post { removeFn() }
+                        removeFn = {
+                            try { locationManager.removeUpdates(listener) }
+                            catch (ignored: Exception) { }
+                        }
+                        try {
+                            locationManager.requestLocationUpdates(
+                                provider,
+                                0L,   // pas de minTime (on veut un fix rapide)
+                                0f,    // pas de minDistance
+                                listener,
+                                Looper.getMainLooper()
+                            )
+                        } catch (e: Exception) {
+                            if (!cont.isCompleted) cont.resume(null)
+                            return@suspendCancellableCoroutine
+                        }
+                        // Si le contexte est annulé (timeout), on retire le listener.
+                        cont.invokeOnCancellation {
+                            mainHandler.post { removeFn() }
+                        }
                     }
                 }
             } ?: continue
@@ -261,6 +263,12 @@ class LocationMonitorService : Service() {
                 }
                 nextDue = minOf(nextDue, tracker.lastCheckMs + tracker.nextIntervalMs)
             }
+
+            // Publie immédiatement après la création des trackers : la page debug
+            // voit un « prochain » valide même si le fix GPS (ci-dessous) est encore
+            // en cours. Sans ce publish, un fix lent laissait « prochain=— » tant
+            // que PUBLISH B (après check) ne s'était pas exécuté.
+            publishStatuses(alarms)
 
             // Un seul fix GPS pour toutes les vérifications dues ce cycle.
             if (dueAlarms.isNotEmpty()) {
