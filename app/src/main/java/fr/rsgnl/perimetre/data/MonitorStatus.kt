@@ -43,13 +43,25 @@ object MonitorStatus {
     private val _lastPublishedAtMs = MutableStateFlow(0L)
     val lastPublishedAtMs: StateFlow<Long> = _lastPublishedAtMs.asStateFlow()
 
+    /** Instant (epoch ms) du prochain réveil de la boucle de surveillance.
+     *  Pendant la surveillance active : la prochaine vérification GPS.
+     *  Pendant le sommeil « entre périodes » : le début de la prochaine période.
+     *  Null si le service n'est pas actif. */
+    private val _nextWakeAtMs = MutableStateFlow<Long?>(null)
+    val nextWakeAtMs: StateFlow<Long?> = _nextWakeAtMs.asStateFlow()
+
     /** Émet l'id d'une alarme ponctuelle qui vient d'être désactivée après déclenchement. */
     private val _oneShotFired = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val oneShotFired: SharedFlow<String> = _oneShotFired
 
-    fun publishAll(map: Map<String, AlarmDebugStatus>) {
+    fun publishAll(map: Map<String, AlarmDebugStatus>, nextWakeAt: Long? = null) {
         _statuses.value = map
         _lastPublishedAtMs.value = System.currentTimeMillis()
+        if (nextWakeAt != null) _nextWakeAtMs.value = nextWakeAt
+    }
+
+    fun setNextWakeAt(atMs: Long?) {
+        _nextWakeAtMs.value = atMs
     }
 
     fun clear() {

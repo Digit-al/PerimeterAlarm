@@ -60,6 +60,7 @@ fun DebugScreen(viewModel: AppViewModel) {
     val alarms by viewModel.alarms.collectAsState()
     val statuses by MonitorStatus.statuses.collectAsState()
     val lastPublishedAtMs by MonitorStatus.lastPublishedAtMs.collectAsState()
+    val nextWakeAtMs by MonitorStatus.nextWakeAtMs.collectAsState()
 
     var log by remember { mutableStateOf<List<String>>(emptyList()) }
     var nextRefreshAt by remember { mutableLongStateOf(System.currentTimeMillis() + 30_000) }
@@ -195,6 +196,23 @@ fun DebugScreen(viewModel: AppViewModel) {
                         text = stringResource(
                             R.string.debug_service_status, timeStr, (tick - lastPublishedAtMs) / 1000L
                         ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                // Prochain réveil de la boucle de surveillance (sommeil ou vérif GPS).
+                nextWakeAtMs?.let { wakeAt ->
+                    val wakeTime = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                        .format(Date(wakeAt))
+                    val deltaSec = ((wakeAt - tick) / 1000).coerceAtLeast(0)
+                    val deltaStr = when {
+                        deltaSec < 60 -> "%d s".format(deltaSec)
+                        deltaSec < 3600 -> "%d min %d s".format(deltaSec / 60, deltaSec % 60)
+                        else -> "%d h %d min".format(deltaSec / 3600, (deltaSec % 3600) / 60)
+                    }
+                    Text(
+                        text = stringResource(R.string.debug_next_wake) + " $wakeTime ($deltaStr)",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.fillMaxWidth()

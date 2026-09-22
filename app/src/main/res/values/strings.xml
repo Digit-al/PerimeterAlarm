@@ -123,6 +123,7 @@
     <string name="debug_line">%1$s  %2$s | active=%3$s | in-period=%4$s | dist.entry=%5$s | speed=%6$s | next=%7$s</string>
     <string name="debug_in_seconds">in %1$d s</string>
     <string name="debug_service_status">Service status last updated at %1$s, %2$d s ago</string>
+    <string name="debug_next_wake">Next wake:</string>
     <string name="debug_exact_alarm_label">Exact alarm (Doze wake-up): </string>
     <string name="debug_exact_alarm_granted">granted</string>
     <string name="debug_exact_alarm_denied">not granted — tap to request</string>

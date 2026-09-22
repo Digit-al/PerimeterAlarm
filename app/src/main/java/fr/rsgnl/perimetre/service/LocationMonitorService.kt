@@ -127,6 +127,7 @@ class LocationMonitorService : Service() {
             scheduleWakeAlarm(nextWakeTarget(System.currentTimeMillis(), alarms)!!)
         }
         MonitorStatus.clear()
+        MonitorStatus.setNextWakeAt(null)
         if (instance === this) instance = null
         super.onDestroy()
     }
@@ -243,6 +244,7 @@ class LocationMonitorService : Service() {
                 val sleepUntil = minOf(targetMs, nowMs + MAX_SINGLE_SLEEP_MS)
                 val sleepMs = (sleepUntil - nowMs).coerceIn(MIN_SLEEP_MS, MAX_SLEEP_CAP_MS)
                 if (sleepMs >= MIN_WAKE_ALARM_SLEEP_MS) scheduleWakeAlarm(targetMs)
+                MonitorStatus.setNextWakeAt(sleepUntil)
                 withTimeoutOrNull(sleepMs) { wakeChannel.receive() }
                 continue
             }
@@ -286,12 +288,13 @@ class LocationMonitorService : Service() {
                 if (key !in stillActive) trackers.remove(key)
             }
 
-            val sleepMs = if (nextDue == Long.MAX_VALUE) {
-                minMs
+            val wakeAt = if (nextDue == Long.MAX_VALUE) {
+                System.currentTimeMillis() + minMs
             } else {
-                (nextDue - System.currentTimeMillis()).coerceAtLeast(MIN_SLEEP_MS)
+                nextDue
             }
-            delay(sleepMs)
+            MonitorStatus.setNextWakeAt(wakeAt)
+            delay((wakeAt - System.currentTimeMillis()).coerceAtLeast(MIN_SLEEP_MS))
         }
     }
 
