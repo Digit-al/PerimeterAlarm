@@ -8,10 +8,10 @@
 ## Current State (last updated: 2026-09-22)
 
 **Branch**: `main`  
-**Last commit**: `170406f` — fix: robust period-boundary wake (2h sleep cap + always arm exact alarm + re-arm on destroy)  
+**Last commit**: `e307a20` — fix: debug 'prochain=—' — add GPS fix timeout + early status publish  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: tag `1.0.0` = `4bc5bee` (asset in place, 11.6 MB). **Refresh pending**: once the wake-robustness hotfix is validated on device, refresh the release asset + move tag `1.0.0` + F-Droid ref to `170406f`.  
-**User testing**: Morning alarm (Boulot, 07:00–08:15) **did NOT ring on 2026-09-22** — Debug showed `période=non` + `dist.entrée=30.44 km` at 08:08 while Home showed the alarm active at 561 m (see session log). Root cause: the service's "between periods" sleep missed the 07:00 period start. Fixed in `170406f`: cap each single sleep at **2 h** (re-eval + re-arm each step → self-correcting), arm the exact alarm at the **exact** next period start for **any** sleep, and re-arm in `onDestroy`. Awaiting on-device validation (full overnight → morning cycle).
+**Release 1.0.0**: tag `1.0.0` = `4bc5bee` (asset in place, 11.6 MB — refreshed to `e307a20`). **Next refresh pending**: once the wake-robustness + debug fixes are validated on device, move tag `1.0.0` + F-Droid ref to `e307a20`.  
+**User testing**: (1) Morning alarm (Boulot, 07:00–08:15) **did NOT ring on 2026-09-22** — fixed in `170406f`, awaiting overnight validation. (2) Debug page showed `prochain=—` persistently for Boulot (active, in period, 569 m) — root cause: `publishStatuses` called before tracker creation + no GPS fix timeout → loop blocked. Fixed in `e307a20`.
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -38,6 +38,7 @@
 - [x] **Config export/import** — JSON file (SAF) containing all settings + alarms; buttons in Settings page
 - [x] **Doze-resistant wake** — `AlarmManager.setAlarmClock` + `WakeReceiver` for long sleeps (hours/days)
 - [x] **Robust period-boundary wake** — 2 h sleep cap (self-correcting), exact alarm armed at the exact next period start for any sleep, re-armed on service destroy; Debug shows the service last-update time (`170406f`)
+- [x] **Debug « prochain=— » fix** — GPS fix timeout (15 s) + status publish before the fix, so the debug page always shows a valid next-check time (`e307a20`)
 
 ### What's pending / next
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
@@ -47,8 +48,9 @@
 - [x] Rebuild the GitHub release 1.0.0 APK with the hotfix — tag `1.0.0` moved to `a5c7200`, asset replaced, F-Droid ref updated (`5ad6089`)
 - [ ] User validation of `7f40c5b` on device: alarm rings on zone entry (fast checks near the perimeter) + user grants the exact-alarm permission from the Settings card
 - [ ] User validation (2026-09-22) that the morning alarm (Boulot) now rings after the wake-robustness hotfix `170406f` — full overnight → morning cycle test (install the hotfix APK, keep the service open overnight)
-- [ ] Refresh GitHub release asset + tag `1.0.0` + F-Droid ref to `7f40c5b` once validated
-- [ ] Push commits to `origin/main` after validation (see Build Environment)
+- [ ] User validation that debug page now shows `prochain` with a valid time (instead of —) when active + in period
+- [ ] Refresh GitHub release tag `1.0.0` + F-Droid ref to `e307a20` once both fixes are validated
+- [x] Push commits to `origin/main` after validation (see Build Environment)
 - [ ] Potential: Tile server configuration (OSM usage policy for heavy use)
 - [ ] Potential: ProGuard rules for release
 - [ ] Potential: notification with "dismiss" action already tested?
@@ -56,6 +58,30 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-22 (debug « prochain=— » — GPS timeout + early publish)
+
+**Context**: David: « Pourquoi dans la page de debug, prochain reste à “—” pour boulot alors qu’on est actif et en période (et proche de surcroit) ? » Screenshot : Debug page, Boulot `active=oui | période=oui | dist.entrée=569 m | vitesse=— | prochain=—` (persiste sur plusieurs snapshots 30 s).
+
+**Analyse**:
+- `publishStatuses(alarms)` est appelé **au début** de chaque itération de `monitorLoop` — AVANT la création du tracker pour le cycle courant.
+- Quand la boucle sort du sommeil « entre périodes » (ou au démarrage), `trackers.clear()` a tout effacé → le premier publish voit `tracker = null` → `nextCheckAtMs = null` → `prochain=—`.
+- Ensuite `requestSingleFix()` est appelé — et **n'avait pas de timeout** (la constante `FIX_TIMEOUT_MS = 15_000` était définie et documentée mais jamais utilisée). En intérieur (utilisateur à 569 m du travail → chez lui), le GPS peut mettre très longtemps à acquérir un fix, voire jamais (pas de timeout → blocage infini).
+- Tant que le fix n'est pas obtenu, le **second** `publishStatuses` (après `performCheck`) ne s'exécute pas → la page debug reste sur l'état « no tracker ».
+- La distance est affichée (569 m) car elle vient de `latestLocation` (fix précédent / `getLastKnownLocation`), indépendante du tracker.
+
+**Fix** (`e307a20`)
+- `LocationMonitorService.kt` :
+  - **Timeout GPS** : `requestSingleFix` enrobe désormais le listener GPS/réseau dans `withTimeoutOrNull(FIX_TIMEOUT_MS)` (15 s). Au-delà, retour à `null` → fallback sur `latestLocation.get()` (fix précédent). La constante `FIX_TIMEOUT_MS` est enfin utilisée.
+  - **Publish précoce** : un `publishStatuses(alarms)` est appelé juste après la création des trackers (boucle `for (alarm in activeInPeriod)`), **avant** le fix GPS. La page debug voit donc un `prochain` valide (calculé depuis `lastCheckMs + nextIntervalMs`) même pendant l'acquisition.
+
+**Build** : ✅ debug + release BUILD SUCCESSFUL (JDK 21). APK release : 11,6 Mo.
+
+**GitHub** : commit poussé sur `origin/main` + asset release 1.0.0 remplacé (upload via `uploads.github.com`).
+
+**Next** : validation sur appareil — ouvrir la page Debug pendant une période active, vérifier que `prochain` affiche une heure concrète (et non « — »), même si le GPS est lent.
+
+---
 
 ### Session 2026-09-22 (morning alarm didn't ring — robust period-boundary wake)
 
