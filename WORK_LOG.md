@@ -5,13 +5,13 @@
 
 ---
 
-## Current State (last updated: 2026-09-21)
+## Current State (last updated: 2026-09-22)
 
 **Branch**: `main`  
-**Last commit**: `2438e30` — ci: drop explicit permissions block (fine-grained PAT level not expressible)  
+**Last commit**: `170406f` — fix: robust period-boundary wake (2h sleep cap + always arm exact alarm + re-arm on destroy)  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: tag `1.0.0` = `4bc5bee` (final — includes all interval fixes + permission prompt). **Done**: notes updated, APK asset in place (id 580729231, 11.6 MB), `fdroid/app.yml` → `4bc5bee`. Upload quirk solved: asset POST must go to `uploads.github.com` (the `api.github.com` path 404s with this token) — see session log.  
-**User testing**: Doze crash validated fixed (2026-09-21). Issues found on device and fixed: (1) interval pinned at max near the perimeter → `7f40c5b` (ETA from entry point + 100 m fast zone); (2) SCHEDULE_EXACT_ALARM denied by default for targetSdk 33+ → `7f40c5b` (Settings card); (3) **stopped/slow user near the perimeter** (traffic jam, chat on foot) still got the 5-min max interval → new distance-based cap (interval ≤ time to cover the remaining distance at a 15 m/s reference resume speed; ≈30 s below 600 m, ≈1 min at 1 km, ≈2 min at 2 km). Awaiting on-device validation of the interval hotfixes + exact-alarm permission grant.
+**Release 1.0.0**: tag `1.0.0` = `4bc5bee` (asset in place, 11.6 MB). **Refresh pending**: once the wake-robustness hotfix is validated on device, refresh the release asset + move tag `1.0.0` + F-Droid ref to `170406f`.  
+**User testing**: Morning alarm (Boulot, 07:00–08:15) **did NOT ring on 2026-09-22** — Debug showed `période=non` + `dist.entrée=30.44 km` at 08:08 while Home showed the alarm active at 561 m (see session log). Root cause: the service's "between periods" sleep missed the 07:00 period start. Fixed in `170406f`: cap each single sleep at **2 h** (re-eval + re-arm each step → self-correcting), arm the exact alarm at the **exact** next period start for **any** sleep, and re-arm in `onDestroy`. Awaiting on-device validation (full overnight → morning cycle).
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -37,6 +37,7 @@
 - [x] **Alarm volume fix** — sound routed to `USAGE_ALARM` stream; per-alarm slider no longer a % of the media volume (`18f2653`)
 - [x] **Config export/import** — JSON file (SAF) containing all settings + alarms; buttons in Settings page
 - [x] **Doze-resistant wake** — `AlarmManager.setAlarmClock` + `WakeReceiver` for long sleeps (hours/days)
+- [x] **Robust period-boundary wake** — 2 h sleep cap (self-correcting), exact alarm armed at the exact next period start for any sleep, re-armed on service destroy; Debug shows the service last-update time (`170406f`)
 
 ### What's pending / next
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
@@ -45,7 +46,7 @@
 - [x] User validation of Doze-resistant wake on device with the **hotfix APK** (no crash after importing settings outside active periods, app stays open during the long sleep)
 - [x] Rebuild the GitHub release 1.0.0 APK with the hotfix — tag `1.0.0` moved to `a5c7200`, asset replaced, F-Droid ref updated (`5ad6089`)
 - [ ] User validation of `7f40c5b` on device: alarm rings on zone entry (fast checks near the perimeter) + user grants the exact-alarm permission from the Settings card
-- [ ] User validation of the morning alarm (Boulot, 07:00–08:15) triggering on time after the Doze wake (first full cycle test)
+- [ ] User validation (2026-09-22) that the morning alarm (Boulot) now rings after the wake-robustness hotfix `170406f` — full overnight → morning cycle test (install the hotfix APK, keep the service open overnight)
 - [ ] Refresh GitHub release asset + tag `1.0.0` + F-Droid ref to `7f40c5b` once validated
 - [ ] Push commits to `origin/main` after validation (see Build Environment)
 - [ ] Potential: Tile server configuration (OSM usage policy for heavy use)
@@ -55,6 +56,32 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-22 (morning alarm didn't ring — robust period-boundary wake)
+
+**Context**: David: « Ca n'a pas sonné ce matin et la page de debug me semble pour le moins étrange… l'alarme boulot est active et on est à 651 m de l'entrée alors que la page de debug indique qu'on est hors période à plus de 30 km. » Deux captures : Home (Boulot active, pastille verte, « Distance à l'entrée : 561 m », période Lun–Ven 07:00–08:15) et Debug (2026-09-22 08:08:33 — `Boulot | active=oui | période=non | dist.entrée=30.44 km | vitesse=— | prochain=—`).
+
+**Analyse**:
+- L'écran Home recalcule la période **en direct** (`TimeUtils.isWithinPeriod`) et affiche une position **fraîche** (écran allumé → `observeCurrentLocation`). À 08:08 (mardi), Boulot est dans sa période (07:00–08:15) et l'utilisateur est à 561 m de l'entrée → Home montre « active » + 561 m. ✓
+- La page Debug lit le **dernier instantané publié par le service** (`MonitorStatus`), rafraîchi seulement quand la boucle tourne. En sommeil « entre périodes », la boucle publie une fois puis dort longtemps **sans republier** → l'instantané est figé à la dernière évaluation (la veille : `période=non`, `latestLocation` = domicile ≈ 30 km, aucun tracker → `prochain=—`). ✗
+- Le service était donc tombé en sommeil « entre périodes » et avait **manqué le début de période à 07:00** : il n'est jamais passé en surveillance active, n'a jamais fait de fix frais, n'a jamais déclenché. Les deux sources de position (Home fraîche vs service figée) expliquent la contradiction 561 m vs 30,44 km ; le `période` figé explique la page Debug « étrange ».
+- Pourquoi le réveil de 07:00 a été manqué (fragilités de `LocationMonitorService`) : (1) le réveil exact n'était armé que pour les sommeils **> 10 min** — une période démarrant à < 10 min de la dernière évaluation reposait uniquement sur un délai coroutine (non résistant au Doze) ; (2) `onDestroy` **annulait** l'alarme sans la re-planifier — un service tué la nuit (processus survivant) orphelinerait le sommeil ; (3) un long sommeil unique n'a pas de re-évaluation, donc n'importe quel réveil Doze perdu/décalé n'est jamais rattrapé.
+
+**Fix** (`170406f`):
+- `LocationMonitorService.kt` :
+  - **Plafond de chaque sommeil unique à `MAX_SINGLE_SLEEP_MS = 2 h`**. Au-delà, la boucle se réveille par paliers, re-évalue l'état et re-planifie l'alarme. Auto-corrigé : un réveil Doze décalé (ou une alarme perdue) est rattrapé au palier suivant, et l'alarme exacte est rafraîchie. Le pire cas de réveil manqué est borné à ~2 h ; pour une période de 75 min (07:00–08:15), la dernière étape est ≤ le temps restant avec une alarme exacte fraîchement armée.
+  - **Armement de l'alarme exacte sur le *début exact* de la prochaine période, pour *n'importe quel* sommeil** (seuil `MIN_WAKE_ALARM_SLEEP_MS = 60 s`) — comble le vide des sommeils courts.
+  - **Re-planification du réveil dans `onDestroy`** (annuler, puis planifier sur la prochaine frontière si au moins une alarme est active) — un service tué (processus survivant) n'orpheline plus le sommeil.
+  - Nouveau helper `nextWakeTarget(nowMs, alarms)` partagé entre la boucle et `onDestroy`.
+- `MonitorStatus.kt` : `lastPublishedAtMs` (mis à jour dans `publishAll`).
+- `DebugScreen.kt` : affiche l'**heure de la dernière mise à jour du service** (transparence sur l'instantané figé — « Statut du service mis à jour à HH:MM:SS, il y a X s »). Nouvelles chaînes EN/FR (`debug_service_status`).
+- Docs : README.md, README.fr.md (section batterie/sommeil + liste service), PROMPT.md (section Doze + edge case #9).
+
+**Build** : ✅ debug + release BUILD SUCCESSFUL (JDK 21). APK release : `app/build/outputs/apk/release/PerimeterAlarm-release.apk` (11,6 Mo, même signature → installe par-dessus).
+
+**Next** : partager l'APK hotfix → l'utilisateur réinstalle (même signature) → valider le cycle complet du matin (service ouvert toute la nuit → sonnerie à l'entrée 07:00–08:15). Puis rafraîchir l'asset GitHub + tag `1.0.0` + ref F-Droid vers `170406f`.
+
+---
 
 ### Session 2026-09-21 (release 1.0.0 refreshed to 4bc5bee — asset upload resolved 2026-09-22)
 
