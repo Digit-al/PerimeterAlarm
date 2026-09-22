@@ -59,6 +59,7 @@ fun DebugScreen(viewModel: AppViewModel) {
     val context = LocalContext.current
     val alarms by viewModel.alarms.collectAsState()
     val statuses by MonitorStatus.statuses.collectAsState()
+    val lastPublishedAtMs by MonitorStatus.lastPublishedAtMs.collectAsState()
 
     var log by remember { mutableStateOf<List<String>>(emptyList()) }
     var nextRefreshAt by remember { mutableLongStateOf(System.currentTimeMillis() + 30_000) }
@@ -184,6 +185,21 @@ fun DebugScreen(viewModel: AppViewModel) {
                         }
                     else Modifier
                 )
+                // Dernière publication d'état par le service. Pendant le sommeil
+                // « entre périodes », les valeurs ci-dessous sont figées à cet instant :
+                // l'afficher évite de les confondre avec un état « en direct ».
+                if (lastPublishedAtMs > 0L) {
+                    val timeStr = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                        .format(Date(lastPublishedAtMs))
+                    Text(
+                        text = stringResource(
+                            R.string.debug_service_status, timeStr, (tick - lastPublishedAtMs) / 1000L
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 Spacer(Modifier.height(12.dp))
             }
             items(log) { line ->

@@ -126,6 +126,7 @@
     <string name="debug_exact_alarm_na">non requise (Android &lt; 12)</string>
     <string name="debug_line">%1$s  %2$s | active=%3$s | période=%4$s | dist.entrée=%5$s | vitesse=%6$s | prochain=%7$s</string>
     <string name="debug_in_seconds">dans %1$d s</string>
+    <string name="debug_service_status">Statut du service mis à jour à %1$s, il y a %2$d s</string>
 
     <!-- Notifications -->
     <string name="notif_monitor_text">Surveillance en cours…</string>

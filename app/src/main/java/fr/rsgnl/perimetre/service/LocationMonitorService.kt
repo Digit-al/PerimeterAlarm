@@ -117,7 +117,15 @@ class LocationMonitorService : Service() {
     override fun onDestroy() {
         scope.cancel()
         soundPlayer.release()
+        // Re-planifie une alarme de réveil pour la prochaine période : si c'est le
+        // SERVICE (et non le processus) qui est tué, le WakeReceiver redémarre la
+        // surveillance à cet instant. Sans cette re-planification, l'alarme annulée
+        // ci-dessous orphelinerait le sommeil de la boucle (plus rien pour la réveiller).
         cancelWakeAlarm()
+        val alarms = repository.loadAlarms()
+        if (alarms.any { it.enabled }) {
+            scheduleWakeAlarm(nextWakeTarget(System.currentTimeMillis(), alarms)!!)
+        }
         MonitorStatus.clear()
         if (instance === this) instance = null
         super.onDestroy()
@@ -214,24 +222,25 @@ class LocationMonitorService : Service() {
 
             if (activeInPeriod.isEmpty()) {
                 trackers.clear()
-                // On dort jusqu'au prochain début de période d'une alarme activée
-                // (ou jusqu'à un changement de liste, signalé via requestWake).
+                // Sommeil « entre périodes » : on dort jusqu'au prochain début de
+                // période d'une alarme activée (ou jusqu'à un changement de liste,
+                // signalé via requestWake). Deux garde-fous rendent ce sommeil fiable :
+                //   1. On ne dort jamais plus de MAX_SINGLE_SLEEP_MS d'un coup. Au-delà,
+                //      on se réveille par paliers pour RE-ÉVALUER l'état et RE-PLANIFIER
+                //      l'alarme de réveil. C'est ce qui rend la boucle auto-corrigée :
+                //      un réveil Doze décalé (ou une alarme perdue) est rattrapé au palier
+                //      suivant, et l'alarme exacte est re-armée à chaque réveil.
+                //   2. L'alarme de réveil (résistante au Doze) est planifiée à la CIBLE
+                //      RÉELLE (le début de période exact), même pour de courts sommeils :
+                //      l'ancien seuil de 10 min laissait un vide où un début de période à
+                //      moins de 10 min reposait uniquement sur un délai coroutine (fragile
+                //      en Doze). Sans la permission d'alarme exacte, on retombe sur le
+                //      simple délai par paliers — toujours borné.
                 val nowMs = System.currentTimeMillis()
-                val nextStart = alarms.filter { it.enabled }
-                    .mapNotNull {
-                        TimeUtils.nextPeriodStart(
-                            it.alwaysOn, it.daysOfWeek, it.startHour, it.startMinute
-                        )
-                    }
-                    .minOrNull()
-                val targetMs = if (nextStart != null && nextStart > nowMs) nextStart
-                               else nowMs + NO_ACTIVE_ALARM_FALLBACK_MS
-                val sleepMs = (targetMs - nowMs).coerceIn(MIN_SLEEP_MS, MAX_SLEEP_CAP_MS)
-                // Long sommeil (heures/jours) : on planifie une alarme résistante au
-                // mode Doze pour que le réveil ne soit pas décalé si l'appareil s'endort.
-                if (sleepMs > LONG_SLEEP_THRESHOLD_MS) {
-                    scheduleWakeAlarm(nowMs + sleepMs)
-                }
+                val targetMs = nextWakeTarget(nowMs, alarms)!!
+                val sleepUntil = minOf(targetMs, nowMs + MAX_SINGLE_SLEEP_MS)
+                val sleepMs = (sleepUntil - nowMs).coerceIn(MIN_SLEEP_MS, MAX_SLEEP_CAP_MS)
+                if (sleepMs >= MIN_WAKE_ALARM_SLEEP_MS) scheduleWakeAlarm(targetMs)
                 withTimeoutOrNull(sleepMs) { wakeChannel.receive() }
                 continue
             }
@@ -416,6 +425,22 @@ class LocationMonitorService : Service() {
     // ---------------- Réveil longue durée (résistance au Doze) ----------------
 
     /**
+     * Prochain instant où la boucle doit se réveiller : le début de la prochaine
+     * période d'une alarme activée, ou à défaut un filet de sécurité
+     * [NO_ACTIVE_ALARM_FALLBACK_MS] plus loin. Retourne un instant epoch strictement
+     * après [nowMs] (null seulement si aucune cible — ne devrait pas arriver quand
+     * le service tourne). Partagé entre la boucle et onDestroy pour rester cohérent.
+     */
+    private fun nextWakeTarget(nowMs: Long, alarms: List<Alarm>): Long? {
+        val nextStart = alarms.filter { it.enabled }
+            .mapNotNull {
+                TimeUtils.nextPeriodStart(it.alwaysOn, it.daysOfWeek, it.startHour, it.startMinute)
+            }
+            .minOrNull()
+        return if (nextStart != null && nextStart > nowMs) nextStart else nowMs + NO_ACTIVE_ALARM_FALLBACK_MS
+    }
+
+    /**
      * Planifie une alarme de réveil qui se déclenche à l'heure pile, y compris
      * si l'appareil est en mode Doze.
      *
@@ -529,12 +554,22 @@ class LocationMonitorService : Service() {
         private const val MAX_SLEEP_CAP_MS = 8L * 24 * 60 * 60 * 1000L  // plafond 8 jours
 
         /**
-         * En-deçà de ce seuil, le simple délai coroutine suffit : le Doze
-         * « normal » ne démarre qu'après ~30 min d'inactivité (écran éteint,
-         * pas de charge, immobile), le « moderate Doze » peut intervenir un peu
-         * plus tôt — 10 min est une marge de sécurité conservative.
+         * Sommeil maximal d'un coup entre deux périodes. Au-delà, la boucle se
+         * réveille par paliers de cette durée pour re-évaluer l'état et re-planifier
+         * l'alarme de réveil. Rend la boucle auto-corrigée : un réveil Doze décalé
+         * (ou une alarme perdue) est rattrapé au palier suivant. 2 h borne le pire
+         * cas d'un réveil manqué tout en gardant très peu de réveils nocturnes
+         * (≈1 toutes les 2 h, sans fix GPS).
          */
-        private const val LONG_SLEEP_THRESHOLD_MS = 10 * 60_000L
+        private const val MAX_SINGLE_SLEEP_MS = 2 * 60 * 60 * 1000L
+
+        /**
+         * En-deçà de cette durée de sommeil, on ne planifie pas d'alarme exacte
+         * (le simple délai coroutine suffit). Le seuil est volontairement bas : l'ancien
+         * seuil de 10 min laissait un vide où un début de période à moins de 10 min
+         * n'était couvert que par un délai fragile en Doze.
+         */
+        private const val MIN_WAKE_ALARM_SLEEP_MS = 60 * 1000L
 
         /**
          * En-deçà de cette distance à l'entrée du périmètre, les vérifications

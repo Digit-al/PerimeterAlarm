@@ -37,12 +37,19 @@ object MonitorStatus {
     private val _statuses = MutableStateFlow<Map<String, AlarmDebugStatus>>(emptyMap())
     val statuses: StateFlow<Map<String, AlarmDebugStatus>> = _statuses.asStateFlow()
 
+    /** Instant (epoch ms) de la dernière publication d'état par le service.
+     *  Utile pour la page de debug : quand le service dort, ces valeurs gèlent à
+     *  cet instant — l'afficher évite de les prendre pour un état "en direct". */
+    private val _lastPublishedAtMs = MutableStateFlow(0L)
+    val lastPublishedAtMs: StateFlow<Long> = _lastPublishedAtMs.asStateFlow()
+
     /** Émet l'id d'une alarme ponctuelle qui vient d'être désactivée après déclenchement. */
     private val _oneShotFired = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val oneShotFired: SharedFlow<String> = _oneShotFired
 
     fun publishAll(map: Map<String, AlarmDebugStatus>) {
         _statuses.value = map
+        _lastPublishedAtMs.value = System.currentTimeMillis()
     }
 
     fun clear() {
