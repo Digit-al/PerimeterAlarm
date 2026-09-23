@@ -8,10 +8,10 @@
 ## Current State (last updated: 2026-09-23)
 
 **Branch**: `main`  
-**Last commit**: `80d1fe3` — feat: alarm audio focus routing to headphones + per-alarm retriggerable option  
+**Last commit**: `9b0c396` — fix: adaptive audio routing — alarm plays on media stream when headphones connected  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: tag `1.0.0` = `33d49c1` (asset replaced 2026-09-23, 11.6 MB, notes updated; F-Droid ref → `33d49c1`).  
-**User testing**: (1) Morning alarm (Boulot, 07:00–08:15) **did NOT ring on 2026-09-22** — fixed in `170406f`, awaiting overnight validation. (2) Debug page showed `prochain=—` persistently for Boulot (active, in period, 569 m) — root cause: `publishStatuses` called before tracker creation + no GPS fix timeout → loop blocked. Fixed in `e307a20`.
+**Release 1.0.0**: tag `1.0.0` = `9b0c396` (asset replaced 2026-09-23, 11.6 MB, notes updated; F-Droid ref → `9b0c396`).  
+**User testing**: (1) Morning alarm (Boulot, 07:00–08:15) **did NOT ring on 2026-09-22** — fixed in `170406f`, awaiting overnight validation. (2) Debug page showed `prochain=—` persistently for Boulot (active, in period, 569 m) — root cause: `publishStatuses` called before tracker creation + no GPS fix timeout → loop blocked. Fixed in `e307a20`. (3) **Alarm still played on the phone speaker with BT earbuds plugged in** (audio focus v1 was not enough — the alarm stream stays pinned to the speaker on device even with focus held) — fixed in `9b0c396` with adaptive media/alarm stream routing, awaiting device validation.
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -39,11 +39,12 @@
 - [x] **Doze-resistant wake** — `AlarmManager.setAlarmClock` + `WakeReceiver` for long sleeps (hours/days)
 - [x] **Robust period-boundary wake** — 2 h sleep cap (self-correcting), exact alarm armed at the exact next period start for any sleep, re-armed on service destroy; Debug shows the service last-update time (`170406f`)
 - [x] **Debug « prochain=— » fix** — GPS fix timeout (15 s) + status publish before the fix, so the debug page always shows a valid next-check time (`e307a20`)
-- [x] **Alarm sound follows connected headphones** — audio focus requested on the `USAGE_ALARM` stream before playback (`AudioFocusRequest`, shared while ≥1 alarm is playing, abandoned when the last stops), so the ringtone routes to wired/Bluetooth headphones instead of staying on the phone speaker
+- [x] **Alarm sound follows connected headphones** (v1) — audio focus requested on the `USAGE_ALARM` stream before playback (`AudioFocusRequest`, shared while ≥1 alarm is playing, abandoned when the last stops), so the ringtone routes to wired/Bluetooth headphones instead of staying on the phone speaker
+- [x] **Adaptive audio routing** (v2, after user reported the alarm still on speaker with BT earbuds) — the player now checks connected outputs before playback: external output (wired/USB/BLE/Bluetooth A2DP, dock…) → **`USAGE_MEDIA`** (always mixed to the active output = headphones); speaker only → **`USAGE_ALARM`** (independent volume, audible in silent). `recheckOutput()` is called on every monitoring cycle while an alarm is ringing → the player restarts on the appropriate stream if the user plugs/unplugs headphones mid-alarm (`9b0c396`)
 - [x] **Per-alarm « can ring several times per period » option** — `Alarm.retriggerable` (nullable `Boolean?`, default `true` = original behavior; Gson-null normalized in `loadAlarms()`). When off, the tracker keeps `triggered=true` after exit (sound still stops) so the alarm rings once per validity period; tracker dropped at period end re-arms it automatically. Toggle in the editor (Period card, hidden for one-shot) + FR/EN strings
 
 ### What's pending / next
-- [ ] User validation of the headphone routing (alarm rings through wired/Bluetooth headphones when plugged in)
+- [ ] User validation of the headphone routing **v2** (`9b0c396`): alarm rings through wired/Bluetooth headphones when plugged in, and switches streams if the output changes mid-alarm
 - [ ] User validation of the « can ring several times per period » option (toggle off → single ring per period)
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
 - [ ] User validation of export/import on device
@@ -62,6 +63,26 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-23 (alarm still on speaker with BT earbuds → adaptive output routing)
+
+**Context**: David: « L'alarme s'est a nouveau déclenchée sur le haut parleur (en arrêtant la musique de mes écouteurs bluetooth) ». Le focus audio v1 ne suffisait pas : la musique s'arrêtait bien (focus accordé) mais le son restait sur le haut-parleur.
+
+**Diagnostic**:
+- Focus v1 correct (`AUDIOFOCUS_GAIN` — dans les stubs de ce projet `AUDIOFOCUS_GAIN = 1 = AUDIOFOCUS_REQUEST_GRANTED`, vérifié via `javap`) → le focus était bien accordé (la musique se mettait en pause).
+- Conclusion : la politique audio de l'appareil **fixe le flux alarme au haut-parleur** malgré le focus. Le seul flux garant d'atteindre la sortie active (les écouteurs où joue la musique) est le **flux média**.
+- `AudioManager.setPreferredDevice` n'existe PAS dans cette surface API (vérifié `javap`) → impossible de forcer la sortie du flux alarme.
+
+**Fix** (`9b0c396` — `AlarmSoundPlayer.kt` + `LocationMonitorService.kt`) :
+- **Routage adaptatif** : avant lecture, `hasExternalOutput()` (`AudioManager.getDevices(GET_DEVICES_OUTPUTS)` : wired/USB/BLE/Bluetooth A2DP, dock, …) — sortie externe connectée → `USAGE_MEDIA` (mélange toujours vers la sortie active = écouteurs) ; sinon `USAGE_ALARM` (volume indépendant, audible en silencieux).
+- **`recheckOutput(id)`** : appelé à chaque cycle de la boucle de surveillance tant qu'une alarme sonne — si la sortie a changé (écouteurs branchés/débranchés en cours de sonnerie), le lecteur est relancé sur le bon flux (les paramètres uri/volume/loop sont conservés dans `SoundEntry`).
+- **Focus** : demandé sur le flux **actif** (média ou alarme), re-demandé si le flux change en cours de route, libéré quand la dernière alarme s'arrête.
+- Trade-off documenté : avec écouteurs branchés, le volume de la sonnerie suit le volume **média** système (× le slider de l'app) ; sans écouteurs, le volume **alarme** système s'applique.
+- Docs : README.md, README.fr.md, PROMPT.md (section Alarm Triggering + AlarmSoundPlayer + boucle) ; release 1.0.0 rafraîchie (asset 584158845, tag → `9b0c396`, notes, F-Droid ref) ; push `main` via HTTPS token.
+
+**Next** : validation appareil — alarme avec écouteurs Bluetooth (et filaires si possible) : le son doit sortir des écouteurs ; brancher/débrancher en cours de sonnerie → bascule automatique du flux.
+
+---
 
 ### Session 2026-09-23 (release 1.0.0 refreshed to 33d49c1 — asset + tag + F-Droid)
 
