@@ -5,10 +5,10 @@
 
 ---
 
-## Current State (last updated: 2026-09-22)
+## Current State (last updated: 2026-09-23)
 
 **Branch**: `main`  
-**Last commit**: `e307a20` — fix: debug 'prochain=—' — add GPS fix timeout + early status publish  
+**Last commit**: `80d1fe3` — feat: alarm audio focus routing to headphones + per-alarm retriggerable option  
 **Build**: ✅ assembles successfully (debug + release APK)  
 **Release 1.0.0**: tag `1.0.0` = `4bc5bee` (asset in place, 11.6 MB — refreshed to `e307a20`). **Next refresh pending**: once the wake-robustness + debug fixes are validated on device, move tag `1.0.0` + F-Droid ref to `e307a20`.  
 **User testing**: (1) Morning alarm (Boulot, 07:00–08:15) **did NOT ring on 2026-09-22** — fixed in `170406f`, awaiting overnight validation. (2) Debug page showed `prochain=—` persistently for Boulot (active, in period, 569 m) — root cause: `publishStatuses` called before tracker creation + no GPS fix timeout → loop blocked. Fixed in `e307a20`.
@@ -39,8 +39,12 @@
 - [x] **Doze-resistant wake** — `AlarmManager.setAlarmClock` + `WakeReceiver` for long sleeps (hours/days)
 - [x] **Robust period-boundary wake** — 2 h sleep cap (self-correcting), exact alarm armed at the exact next period start for any sleep, re-armed on service destroy; Debug shows the service last-update time (`170406f`)
 - [x] **Debug « prochain=— » fix** — GPS fix timeout (15 s) + status publish before the fix, so the debug page always shows a valid next-check time (`e307a20`)
+- [x] **Alarm sound follows connected headphones** — audio focus requested on the `USAGE_ALARM` stream before playback (`AudioFocusRequest`, shared while ≥1 alarm is playing, abandoned when the last stops), so the ringtone routes to wired/Bluetooth headphones instead of staying on the phone speaker
+- [x] **Per-alarm « can ring several times per period » option** — `Alarm.retriggerable` (nullable `Boolean?`, default `true` = original behavior; Gson-null normalized in `loadAlarms()`). When off, the tracker keeps `triggered=true` after exit (sound still stops) so the alarm rings once per validity period; tracker dropped at period end re-arms it automatically. Toggle in the editor (Period card, hidden for one-shot) + FR/EN strings
 
 ### What's pending / next
+- [ ] User validation of the headphone routing (alarm rings through wired/Bluetooth headphones when plugged in)
+- [ ] User validation of the « can ring several times per period » option (toggle off → single ring per period)
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
 - [ ] User validation of export/import on device
 - [ ] User feedback on one-shot alarm behavior
@@ -58,6 +62,27 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-23 (alarm routing to headphones + per-alarm re-trigger option)
+
+**Context**: David: « L'alarme sonne uniquement sur le haut-parleur du téléphone même lorsque j'ai des écouteurs. J'aimerai que l'alarme sonne dans les écouteurs si ils sont branchés » + « J'aimerai une option pour choisir si une alarme peut se déclencher plusieurs fois dans son intervalle de validité. »
+
+**Fix 1 — routing écouteurs** (`AlarmSoundPlayer.kt`):
+- La sonnerie était déjà sur le flux `USAGE_ALARM` (correct pour le volume), mais **sans focus audio**, la politique audio Android peut laisser le flux alarme sur le haut-parleur du téléphone même quand des écouteurs (filaire ou Bluetooth) sont branchés.
+- `AlarmSoundPlayer` demande maintenant le **focus audio** (`AudioFocusRequest` avec les mêmes attributs `USAGE_ALARM`/`CONTENT_TYPE_SONIFICATION`, `AUDIOFOCUS_REQUEST_GRANTED`, `setAcceptsDelayedFocusGain(true)`) **avant** le `MediaPlayer.start()`. Une seule demande est partagée tant qu'au moins une alarme sonne (comptage via la map `players`) et libérée via `abandonAudioFocusRequest` quand la dernière s'arrête (et dans `release()`).
+- **Piège SDK rencontré** : dans les stubs `android-34` de ce projet, `AudioFocusRequest.Builder` n'a PAS de constructeur `AudioAttributes` ni de `acceptsDelayedFocusGain()`/`willPlayWhenPaused()` sans arg — l'API réelle est `Builder(int gain)` + `setAudioAttributes(...)` + `setAcceptsDelayedFocusGain(boolean)` + `requestAudioFocus(AudioFocusRequest)` (1 arg). Vérifié via `javap` sur `android.jar`.
+
+**Fix 2 — option « peut retentir plusieurs fois »** :
+- `Alarm.kt` : nouveau champ `var retriggerable: Boolean? = true` — **nullable volontairement** : Gson contourne les constructeurs, un champ absent dans une sauvegarde ancienne vaudrait `false` (changement de comportement silencieux) avec un `Boolean` primitif ; en `Boolean?` l'absent devient `null`, normalisé en `true` (comportement d'origine) dans `AlarmRepository.loadAlarms()`.
+- `LocationMonitorService.performCheck` : à la sortie du périmètre (hystérésis 15 %), le son s'arrête toujours ; `tracker.triggered` n'est remis à `false` que si `alarm.retriggerable != false`. À `false`, l'alarme ne sonne donc qu'une fois par période ; le tracker est retiré quand l'alarme sort de sa période → réarmement automatique pour la période suivante. (Pour une alarme « Ponctuelle » le champ est sans effet : elle se désactive après le 1er déclenchement.)
+- `EditorScreen.kt` : toggle « Peut retentir plusieurs fois dans sa période » dans la carte Période (masqué en mode Ponctuelle), avec hint explicatif quand désactivé. Nouvelles chaînes `editor_retriggerable` / `editor_retriggerable_hint` (FR + EN).
+- Docs : README.md + README.fr.md (features), PROMPT.md (modèle de données, logique de déclenchement, écran éditeur, `AlarmSoundPlayer`, edge cases #3 et #6).
+
+**Build** : ✅ debug + release BUILD SUCCESSFUL (JDK 21, `/home/user/toolchain/jdk-21`).
+
+**Next** : validation sur appareil — (1) alarme branchée sur écouteurs filaires ET Bluetooth, (2) toggle off → une seule sonnerie par période malgré sortie/réentrée dans la zone.
+
+---
 
 ### Session 2026-09-22 (debug « prochain=— » — GPS timeout + early publish)
 
