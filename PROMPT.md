@@ -144,6 +144,9 @@ while (true) {
                 if retriggerable == false, keep triggered=true: the alarm rings ONCE per
                 validity period (the tracker is dropped when the alarm leaves its period,
                 so it re-arms automatically for the next period)
+        While an alarm is ringing: soundPlayer.recheckOutput(alarmId) every cycle —
+        if the connected output changed (headphones plugged/unplugged), the player
+        is restarted on the appropriate stream (media vs alarm).
 
     Sleep until the earliest next-check time across all alarms
 }
@@ -177,7 +180,7 @@ class Tracker {
 When triggered:
 - Show a **high-priority notification** (channel: alarm, `IMPORTANCE_HIGH`) with a "Stop" action.
 - Play the ringtone via `MediaPlayer` (looping, volume from settings). Build the player manually and route it to the system alarm stream with `AudioAttributes` (`USAGE_ALARM`, `CONTENT_TYPE_SONIFICATION`) so the volume follows the alarm volume, not the media volume — `MediaPlayer.create()` routes to the media stream, avoid it.
-- **Before starting playback, request audio focus** (`AudioFocusRequest`, `AUDIOFOCUS_REQUEST_GRANTED`, same `USAGE_ALARM`/`CONTENT_TYPE_SONIFICATION` attributes, `setAcceptsDelayedFocusGain(true)`): without focus, the audio policy can keep the alarm stream on the phone's speaker even when wired/Bluetooth headphones are connected — with focus, the alarm follows the current default output (headphones). One shared request is held while at least one alarm is playing (`players` map non-empty) and abandoned via `abandonAudioFocusRequest` when the last one stops. Note: in this SDK stub, `AudioFocusRequest.Builder` has NO `AudioAttributes` constructor — use `Builder(int gain)` + `setAudioAttributes(...)`; and `requestAudioFocus(AudioFocusRequest)` (1-arg) is the available overload.
+- **Adaptive output routing** (so the alarm reaches connected headphones instead of the phone speaker): before playback, check `AudioManager.getDevices(GET_DEVICES_OUTPUTS)` — if an **external output** is connected (wired/USB/BLE/Bluetooth A2DP headset, dock, …), play on the **media stream** (`USAGE_MEDIA`), which is always mixed to the active output; otherwise play on the **alarm stream** (`USAGE_ALARM`) (independent of media volume, audible in silent mode). Rationale: on real devices the alarm stream can stay pinned to the speaker even with audio focus held (verified on device). While ≥1 alarm is playing, request **audio focus** on the active stream (`AudioFocusRequest` built with `AUDIOFOCUS_GAIN` + matching usage, `setAcceptsDelayedFocusGain(true)`) — one shared request, re-requested if the stream changes mid-playback, abandoned via `abandonAudioFocusRequest` when the last alarm stops. While an alarm is ringing, the service calls `soundPlayer.recheckOutput(alarmId)` on every monitoring cycle: if the connected output changed (headphones plugged/unplugged), the player is restarted on the appropriate stream. Note: in this SDK stub, `AudioFocusRequest.Builder` has NO `AudioAttributes` constructor — use `Builder(int gain)` + `setAudioAttributes(...)`; and `requestAudioFocus(AudioFocusRequest)` (1-arg) is the available overload. `AudioManager.setPreferredDevice` is NOT available in this API surface.
 - Vibrate via `VibratorManager` (pattern: 0-600ms on-400ms off, repeating).
 - The sound/ringtone URI comes from the alarm's `SoundSettings`, or falls back to the app's `defaultSound`.
 
@@ -287,7 +290,7 @@ Requested at runtime on first launch via `ActivityResultContracts.RequestMultipl
 
 - **`Geo`**: Haversine distance (meters) between two lat/lon points.
 - **`TimeUtils`**: `isWithinPeriod()` (handles midnight-crossing), `nextPeriodStart()` (scans 8 days ahead), `formatHourMinute()`, `formatDays()`.
-- **`AlarmSoundPlayer`**: manages `MediaPlayer` (per-alarm, looping, volume, routed to `USAGE_ALARM` + audio focus so it follows connected headphones) and `Vibrator` (per-alarm, waveform pattern). Indexes by alarm ID for individual stop.
+- **`AlarmSoundPlayer`**: manages `MediaPlayer` (per-alarm, looping, volume, adaptive media/alarm stream routing + audio focus + `recheckOutput()` to follow output changes while ringing) and `Vibrator` (per-alarm, waveform pattern). Indexes by alarm ID for individual stop.
 - **`LocationUtils`**: `lastKnownLocation()` — checks GPS, network, passive providers, returns the most recent.
 - **`RingtoneUtils`**: `title(context, uri)` — returns the display name for a ringtone URI, or localized "Default (system)" if null. Also `hasMediaAudioPermission(context)` to check `READ_MEDIA_AUDIO` (API 33+) / `READ_EXTERNAL_STORAGE`.
 - **`Format`**: distance formatting (m/km with appropriate precision).

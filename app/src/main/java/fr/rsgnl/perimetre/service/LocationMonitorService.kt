@@ -288,6 +288,15 @@ class LocationMonitorService : Service() {
                 if (key !in stillActive) trackers.remove(key)
             }
 
+            // Routage adaptatif : si l'utilisateur a branché (ou débranché) ses
+            // écouteurs (Bluetooth, filaires…) pendant que l'alarme sonne,
+            // relancer le lecteur sur le bon flux (média vs alarme).
+            for (alarm in activeInPeriod) {
+                trackers[alarm.id]?.let {
+                    if (it.triggered) soundPlayer.recheckOutput(alarm.id, this)
+                }
+            }
+
             val wakeAt = if (nextDue == Long.MAX_VALUE) {
                 System.currentTimeMillis() + minMs
             } else {

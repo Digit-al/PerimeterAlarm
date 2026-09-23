@@ -46,8 +46,8 @@ An alarm consists of:
    - "use default settings" toggle (otherwise custom settings),
    - **vibration** (on/off), **volume** (0–100 % slider), **ringtone** (system ringtone picker — shows all available alarm tones, or the system default).
    - A **× button** resets the ringtone back to the system default.
-   - The alarm sound plays on the system **alarm volume** stream (`USAGE_ALARM`) — independent of the media volume, and audible even when the phone is on silent; the slider sets a percentage of that stream.
-   - When a ringtone starts, the app **requests audio focus on the alarm stream**: the sound follows the currently connected output (wired or Bluetooth headphones) instead of staying on the phone's speaker.
+   - The alarm sound is routed to the **connected output**: when wired/Bluetooth headphones are connected, it plays on the **media stream** (`USAGE_MEDIA`), which is guaranteed to reach them; otherwise it plays on the system **alarm volume** stream (`USAGE_ALARM`) — independent of the media volume, and audible even when the phone is on silent; the slider sets a percentage of that stream.
+   - If the output changes while the alarm is ringing (e.g. plugging in the headphones), the player switches to the appropriate stream automatically (checked on every monitoring cycle), and the app **requests audio focus** on the active stream while the alarm plays.
 
 ### Dynamic check logic
 When an alarm is **enabled** and **within its validity period**, the position is checked at dynamic intervals:

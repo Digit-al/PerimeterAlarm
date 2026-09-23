@@ -46,8 +46,8 @@ Une alarme se compose de :
    - toggle « utiliser les réglages par défaut » (sinon réglages personnalisés),
    - **vibreur** (on/off), **volume** (slider 0–100 %), **sonnerie** (sélecteur système — affiche toutes les sonneries disponibles, ou défaut système).
    - Un **bouton ×** réinitialise la sonnerie au défaut système.
-   - Le son de l'alarme joue sur le flux **volume alarme** système (`USAGE_ALARM`) — indépendant du volume média, et audible même en mode silencieux ; le slider règle un pourcentage de ce flux.
-   - À chaque démarrage de sonnerie, l'application **demande le focus audio du flux alarme** : le son suit la sortie branchée (écouteurs filaires ou Bluetooth) au lieu de rester sur le haut-parleur du téléphone.
+   - Le son de l'alarme est routé vers la **sortie connectée** : quand des écouteurs filaires ou Bluetooth sont branchés, il joue sur le **flux média** (`USAGE_MEDIA`), qui est garanti de les atteindre ; sinon il joue sur le flux **volume alarme** système (`USAGE_ALARM`) — indépendant du volume média, et audible même en mode silencieux ; le slider règle un pourcentage de ce flux.
+   - Si la sortie change pendant que l'alarme sonne (ex. branchement des écouteurs), le lecteur bascule automatiquement sur le bon flux (vérifié à chaque cycle de surveillance), et l'application **demande le focus audio** sur le flux actif tant que l'alarme sonne.
 
 ### Logique de vérification dynamique
 Lorsqu'une alarme est **activée** et **dans sa période de validité**, la position est vérifiée à des intervalles dynamiques :
