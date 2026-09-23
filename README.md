@@ -39,6 +39,7 @@ An alarm consists of:
    - **checkboxes** for each **day of the week** (Mon → Sun),
    - a **start time** and an **end time** (time pickers, handles periods crossing midnight),
    - or a simple **"Always on"** toggle (24/7).
+   - a **"Can ring several times per period"** toggle (on by default) — when off, the alarm rings only once per validity period and re-arms at the start of the next period.
    - Days and times are hidden when "One-time" is selected.
 
 4. **Ringtone & vibration** (specific to the alarm):
@@ -46,6 +47,7 @@ An alarm consists of:
    - **vibration** (on/off), **volume** (0–100 % slider), **ringtone** (system ringtone picker — shows all available alarm tones, or the system default).
    - A **× button** resets the ringtone back to the system default.
    - The alarm sound plays on the system **alarm volume** stream (`USAGE_ALARM`) — independent of the media volume, and audible even when the phone is on silent; the slider sets a percentage of that stream.
+   - When a ringtone starts, the app **requests audio focus on the alarm stream**: the sound follows the currently connected output (wired or Bluetooth headphones) instead of staying on the phone's speaker.
 
 ### Dynamic check logic
 When an alarm is **enabled** and **within its validity period**, the position is checked at dynamic intervals:

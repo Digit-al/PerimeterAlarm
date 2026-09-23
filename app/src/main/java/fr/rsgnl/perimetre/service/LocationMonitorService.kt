@@ -333,8 +333,15 @@ class LocationMonitorService : Service() {
                     }
                 }
             } else if (tracker.triggered && distance > alarm.radiusMeters * 1.15) {
-                tracker.triggered = false
                 stopAlarmSound(alarm.id)
+                // Réarmement : si l'alarme est configurée pour sonner une seule
+                // fois par période, on garde `triggered = true` — elle ne sonnera
+                // pas à nouveau tant que la période courante n'est pas finie
+                // (le tracker est retiré quand l'alarme sort de sa période, ce qui
+                // réarme automatiquement pour la période suivante).
+                if (alarm.retriggerable != false) {
+                    tracker.triggered = false
+                }
             }
         } else {
             tracker.lastCheckMs = now

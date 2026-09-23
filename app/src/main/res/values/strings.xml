@@ -62,6 +62,8 @@
     <string name="editor_radius_hint">Slider, value and the circle on the map are synchronized in real time.</string>
     <string name="editor_period">Validity period</string>
     <string name="editor_always_on">Always on (24/7)</string>
+    <string name="editor_retriggerable">Can ring several times per period</string>
+    <string name="editor_retriggerable_hint">When off, the alarm rings only once per validity period. It re-arms when the period restarts (or when the alarm is toggled off and on).</string>
     <string name="editor_one_shot">One-time</string>
     <string name="editor_one_shot_hint">Manually activated — deactivates automatically after the first trigger.</string>
     <string name="home_one_shot_label">One-time</string>

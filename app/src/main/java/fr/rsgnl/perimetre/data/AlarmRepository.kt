@@ -24,6 +24,9 @@ class AlarmRepository(context: Context) {
                 val snd: SoundSettings? = a.sound
                 a.sound = snd?.normalized() ?: SoundSettings()
                 a.radiusMeters = a.radiusMeters.coerceIn(1, Int.MAX_VALUE)
+                // Champ ajouté après les premières versions : absent (null, Gson
+                // contourne le constructeur) → comportement d'origine (true).
+                a.retriggerable = a.retriggerable ?: true
             }
             list
         } catch (e: Exception) {

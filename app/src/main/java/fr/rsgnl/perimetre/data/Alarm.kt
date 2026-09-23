@@ -28,6 +28,12 @@ data class SoundSettings(
  *
  * @param oneShot Alarme ponctuelle : activée manuellement, se désactive automatiquement
  *                après le premier déclenchement. Les jours/heures sont ignorés.
+ * @param retriggerable Si l'alarme peut se déclencher plusieurs fois dans sa période
+ *                de validité : à `true`, elle se réarme quand l'utilisateur quitte
+ *                le périmètre (hystérésis) puis ré-entre ; à `false`, elle ne sonne
+ *                qu'une fois par période (réarmée au début de la période suivante).
+ *                Nullable pour la compatibilité avec les sauvegardes anciennes
+ *                (Gson → null) : `AlarmRepository.loadAlarms()` normalise en `true`.
  * @param daysOfWeek Jours de la semaine où l'alarme est valide, encodés en ISO (1 = lundi … 7 = dimanche).
  *                   Ignoré si [alwaysOn] est vrai ou si [oneShot] est vrai.
  * @param sound Réglages sonores spécifiques à cette alarme (ou usage du défaut applicatif).
@@ -46,6 +52,7 @@ data class Alarm(
     var endHour: Int = 20,
     var endMinute: Int = 0,
     var enabled: Boolean = true,
+    var retriggerable: Boolean? = true,
     var sound: SoundSettings = SoundSettings()
 ) {
     /** Nom affiché : le nom saisi, ou un nom par défaut basé sur les coordonnées. */

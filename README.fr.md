@@ -39,6 +39,7 @@ Une alarme se compose de :
    - des **cases à cocher** pour chaque **jour de la semaine** (Lun → Dim),
    - **heure de début** et **heure de fin** (sélecteurs d'heure, gère les périodes qui traversent minuit),
    - ou un simple **toggle « Toujours active »** (24 h/24, 7 j/7).
+   - un **toggle « Peut retentir plusieurs fois dans sa période »** (activé par défaut) — désactivé, l'alarme ne sonne qu'une fois par période de validité ; elle se réarme au début de la période suivante.
    - Les jours et heures sont masqués quand « Ponctuelle » est sélectionnée.
 
 4. **Sonnerie & vibration** (spécifique à l'alarme) :
@@ -46,6 +47,7 @@ Une alarme se compose de :
    - **vibreur** (on/off), **volume** (slider 0–100 %), **sonnerie** (sélecteur système — affiche toutes les sonneries disponibles, ou défaut système).
    - Un **bouton ×** réinitialise la sonnerie au défaut système.
    - Le son de l'alarme joue sur le flux **volume alarme** système (`USAGE_ALARM`) — indépendant du volume média, et audible même en mode silencieux ; le slider règle un pourcentage de ce flux.
+   - À chaque démarrage de sonnerie, l'application **demande le focus audio du flux alarme** : le son suit la sortie branchée (écouteurs filaires ou Bluetooth) au lieu de rester sur le haut-parleur du téléphone.
 
 ### Logique de vérification dynamique
 Lorsqu'une alarme est **activée** et **dans sa période de validité**, la position est vérifiée à des intervalles dynamiques :

@@ -98,6 +98,7 @@ fun EditorScreen(viewModel: AppViewModel) {
     var endH by remember { mutableStateOf(initial.endHour) }
     var endM by remember { mutableStateOf(initial.endMinute) }
     var enabled by remember { mutableStateOf(initial.enabled) }
+    var retriggerable by remember { mutableStateOf(initial.retriggerable ?: true) }
     var draftSound by remember { mutableStateOf(initial.sound.copy()) }
     var fitTrigger by remember { mutableIntStateOf(0) }
     var showStartPicker by remember { mutableStateOf(false) }
@@ -159,6 +160,7 @@ fun EditorScreen(viewModel: AppViewModel) {
                             endHour = endH,
                             endMinute = endM,
                             enabled = enabled,
+                            retriggerable = retriggerable,
                             sound = draftSound.normalized()
                         )
                     )
@@ -319,6 +321,22 @@ fun EditorScreen(viewModel: AppViewModel) {
                                     alwaysOn = value
                                     if (value) days = (1..7).toSet()
                                 }
+                            )
+                        }
+
+                        // Réarmement au sein de la période
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.editor_retriggerable), modifier = Modifier.weight(1f))
+                            Switch(
+                                checked = retriggerable,
+                                onCheckedChange = { value -> retriggerable = value }
+                            )
+                        }
+                        if (!retriggerable) {
+                            Text(
+                                stringResource(R.string.editor_retriggerable_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 

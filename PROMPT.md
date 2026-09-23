@@ -66,6 +66,7 @@ data class Alarm(
     var endHour: Int = 20,
     var endMinute: Int = 0,
     var enabled: Boolean = true,
+    var retriggerable: Boolean? = true,   // nullable: Gson bypasses constructors → null for old saves; normalized to true in loadAlarms()
     var sound: SoundSettings = SoundSettings()
 )
 
@@ -139,6 +140,10 @@ while (true) {
         Check triggering:
             if distance <= radius AND not already triggered → trigger alarm
             if distance > radius * 1.15 AND was triggered → stop alarm (hysteresis 15%)
+                and if alarm.retriggerable → tracker.triggered = false (re-arms on re-entry);
+                if retriggerable == false, keep triggered=true: the alarm rings ONCE per
+                validity period (the tracker is dropped when the alarm leaves its period,
+                so it re-arms automatically for the next period)
 
     Sleep until the earliest next-check time across all alarms
 }
@@ -172,6 +177,7 @@ class Tracker {
 When triggered:
 - Show a **high-priority notification** (channel: alarm, `IMPORTANCE_HIGH`) with a "Stop" action.
 - Play the ringtone via `MediaPlayer` (looping, volume from settings). Build the player manually and route it to the system alarm stream with `AudioAttributes` (`USAGE_ALARM`, `CONTENT_TYPE_SONIFICATION`) so the volume follows the alarm volume, not the media volume — `MediaPlayer.create()` routes to the media stream, avoid it.
+- **Before starting playback, request audio focus** (`AudioFocusRequest`, `AUDIOFOCUS_REQUEST_GRANTED`, same `USAGE_ALARM`/`CONTENT_TYPE_SONIFICATION` attributes, `setAcceptsDelayedFocusGain(true)`): without focus, the audio policy can keep the alarm stream on the phone's speaker even when wired/Bluetooth headphones are connected — with focus, the alarm follows the current default output (headphones). One shared request is held while at least one alarm is playing (`players` map non-empty) and abandoned via `abandonAudioFocusRequest` when the last one stops. Note: in this SDK stub, `AudioFocusRequest.Builder` has NO `AudioAttributes` constructor — use `Builder(int gain)` + `setAudioAttributes(...)`; and `requestAudioFocus(AudioFocusRequest)` (1-arg) is the available overload.
 - Vibrate via `VibratorManager` (pattern: 0-600ms on-400ms off, repeating).
 - The sound/ringtone URI comes from the alarm's `SoundSettings`, or falls back to the app's `defaultSound`.
 
@@ -204,7 +210,7 @@ Single-activity app with a `sealed class Screen` (Home, Editor, Settings, Debug)
 - **Map** (osmdroid, 280dp height): marker at alarm location, blue polygon circle for radius, blue dot for current position. Tap to move location. "My location" and "Recenter" buttons.
 - **Perimeter**: slider (10m–5km) + text field for exact radius, synced in real time.
 - **One-time (Ponctuelle)** toggle: when active, shows a simple "Manually activate" message instead of days/times. Alarm auto-deactivates after first trigger.
-- **Period**: day-of-week checkboxes (Mon–Sun), start/end time pickers, "Always on" toggle. Hidden when one-shot is active.
+- **Period**: day-of-week checkboxes (Mon–Sun), start/end time pickers, "Always on" toggle, and a **"Can ring several times per period"** toggle (`retriggerable`, default on): when off, the alarm rings only once per validity period (no re-arm on exit/re-entry). Hidden when one-shot is active.
 - **Sound**: use-default toggle, vibration toggle, volume slider, ringtone picker (system `ACTION_RINGTONE_PICKER`), reset button (× to revert to system default).
   - When `useDefault=true`, the ringtone button displays "Défaut app : <ringtone title>" (the app-level default ringtone that will actually be played).
 - **Enable** toggle.
@@ -281,7 +287,7 @@ Requested at runtime on first launch via `ActivityResultContracts.RequestMultipl
 
 - **`Geo`**: Haversine distance (meters) between two lat/lon points.
 - **`TimeUtils`**: `isWithinPeriod()` (handles midnight-crossing), `nextPeriodStart()` (scans 8 days ahead), `formatHourMinute()`, `formatDays()`.
-- **`AlarmSoundPlayer`**: manages `MediaPlayer` (per-alarm, looping, volume, routed to `USAGE_ALARM`) and `Vibrator` (per-alarm, waveform pattern). Indexes by alarm ID for individual stop.
+- **`AlarmSoundPlayer`**: manages `MediaPlayer` (per-alarm, looping, volume, routed to `USAGE_ALARM` + audio focus so it follows connected headphones) and `Vibrator` (per-alarm, waveform pattern). Indexes by alarm ID for individual stop.
 - **`LocationUtils`**: `lastKnownLocation()` — checks GPS, network, passive providers, returns the most recent.
 - **`RingtoneUtils`**: `title(context, uri)` — returns the display name for a ringtone URI, or localized "Default (system)" if null. Also `hasMediaAudioPermission(context)` to check `READ_MEDIA_AUDIO` (API 33+) / `READ_EXTERNAL_STORAGE`.
 - **`Format`**: distance formatting (m/km with appropriate precision).
@@ -356,13 +362,13 @@ app/src/main/java/fr/rsgnl/perimetre/
 
 2. **Battery**: Single-fix-per-check (not continuous tracking) keeps GPS duty cycle proportional to check frequency. When far, checks are 5 min apart → GPS on only ~15s per 5 min.
 
-3. **Hysteresis**: 15% margin on the radius prevents rapid re-triggering when the user oscillates near the boundary.
+3. **Hysteresis**: 15% margin on the radius prevents rapid re-triggering when the user oscillates near the boundary. On exit (distance > radius × 1.15) the sound always stops; `tracker.triggered` is cleared **only** if `alarm.retriggerable != false`, which is what controls whether the alarm can ring again within the same validity period (a one-shot alarm is simply disabled after its first trigger).
 
 4. **Midnight-crossing periods**: e.g., 22:00 → 06:00 works because the check is `current >= start || current <= end` when `start > end`.
 
 5. **Service wake**: `AlarmRepository.saveAlarms()` calls `LocationMonitorService.requestWake()` which sends a signal on a `Channel`, waking the monitor loop's `withTimeoutOrNull` sleep immediately.
 
-6. **Gson null safety**: Fields added after initial release (e.g., `language`, `sound`) may be `null` in old saved JSON. The repository normalizes them on load.
+6. **Gson null safety**: Fields added after initial release (e.g., `language`, `sound`, `retriggerable`) may be `null` in old saved JSON (Gson bypasses constructors). The repository normalizes them on load (`retriggerable` → `true` = original behavior).
 
 7. **osmdroid cache**: Tile cache goes to internal storage (`filesDir/osmdroid`) to avoid runtime storage permissions.
 
