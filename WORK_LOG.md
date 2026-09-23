@@ -10,7 +10,7 @@
 **Branch**: `main`  
 **Last commit**: `80d1fe3` — feat: alarm audio focus routing to headphones + per-alarm retriggerable option  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: tag `1.0.0` = `4bc5bee` (asset in place, 11.6 MB — refreshed to `e307a20`). **Next refresh pending**: once the wake-robustness + debug fixes are validated on device, move tag `1.0.0` + F-Droid ref to `e307a20`.  
+**Release 1.0.0**: tag `1.0.0` = `33d49c1` (asset replaced 2026-09-23, 11.6 MB, notes updated; F-Droid ref → `33d49c1`).  
 **User testing**: (1) Morning alarm (Boulot, 07:00–08:15) **did NOT ring on 2026-09-22** — fixed in `170406f`, awaiting overnight validation. (2) Debug page showed `prochain=—` persistently for Boulot (active, in period, 569 m) — root cause: `publishStatuses` called before tracker creation + no GPS fix timeout → loop blocked. Fixed in `e307a20`.
 
 ### What's done
@@ -53,7 +53,7 @@
 - [ ] User validation of `7f40c5b` on device: alarm rings on zone entry (fast checks near the perimeter) + user grants the exact-alarm permission from the Settings card
 - [ ] User validation (2026-09-22) that the morning alarm (Boulot) now rings after the wake-robustness hotfix `170406f` — full overnight → morning cycle test (install the hotfix APK, keep the service open overnight)
 - [ ] User validation that debug page now shows `prochain` with a valid time (instead of —) when active + in period
-- [ ] Refresh GitHub release tag `1.0.0` + F-Droid ref to `e307a20` once both fixes are validated
+- [x] Refresh GitHub release tag `1.0.0` + F-Droid ref to `33d49c1` (2026-09-23 — asset replaced, notes + F-Droid ref updated)
 - [x] Push commits to `origin/main` after validation (see Build Environment)
 - [ ] Potential: Tile server configuration (OSM usage policy for heavy use)
 - [ ] Potential: ProGuard rules for release
@@ -62,6 +62,21 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-23 (release 1.0.0 refreshed to 33d49c1 — asset + tag + F-Droid)
+
+**Context**: David: « tu peux rafraichir » (rafraîchir la release 1.0.0 avec le build courant).
+
+**Actions**:
+- Sanity : `assembleRelease` up-to-date à HEAD `33d49c1` (APK 11,64 Mo, même signature → installe par-dessus).
+- Release GitHub 1.0.0 (id 392938396) : ancien asset supprimé (id 581611389), nouveau `PerimeterAlarm-release.apk` uploadé (id 583425396, 11 640 725 o) via `uploads.github.com` (token `~/.github_token`) ; notes de release mises à jour (features + build `33d49c1`).
+- Tag `1.0.0` force-déplacé `4bc5bee` → `33d49c1` (push).
+- `fdroid/app.yml` : commit ref `4bc5bee` → `33d49c1`.
+- Push via HTTPS token (SSH non disponible dans cet environnement).
+
+**Next** : validation sur appareil du build `33d49c1` — routing écouteurs (filaire + Bluetooth) et option « retentir plusieurs fois par période ».
+
+---
 
 ### Session 2026-09-23 (alarm routing to headphones + per-alarm re-trigger option)
 
