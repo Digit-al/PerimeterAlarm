@@ -66,6 +66,16 @@
 
 ## Session Log
 
+### Session 2026-09-24 (asset release corrompu — upload en binaire brut)
+
+**Contexte** : David impossible d'installer l'APK téléchargée depuis la release (celle du build local, elle, s'installe).
+
+**Diagnostic** : l'asset servait un fichier de 11 643 441 o (local : 11 643 196 o) dont les premiers octets étaient `----------sesTZK…` + `Content-Disposition: form-data…` → **le body multipart curl était stocké tel quel comme asset** au lieu du fichier. `unzip` : « 191 extra bytes at beginning of zipfile » ; `file` : « data » (pas « Android package »).
+
+**Fix** : l'endpoint `uploads.github.com` de cet environnement attend le **binaire brut** — upload via `curl -X POST -H "Content-Type: application/vnd.android.package-archive" --data-binary @fichier` (et non `-F "file=@fichier"`). Re-upload vérifié bout-en-bout : md5 identique au local (`1790452d…`), `file` = « Android package (APK) », zip OK. (Les uploads précédents de la session 9b0c396/842a26a étaient donc probablement aussi corrompus — d'où l'installation toujours via le build local.)
+
+---
+
 ### Session 2026-09-24 (media volume boost + music auto-resume — `842a26a`)
 
 **Context**: David valide le routage écouteurs (« ça passe bien dans les écouteurs maintenant ») et demande : (1) d'implémenter la gestion du volume discutée la veille (boost du volume média au niveau du slider le temps de l'alarme, posé **seulement après** que la musique est coupée, sinon « ça risque de faire bizarre ») ; (2) que **la musique reprenne après l'arrêt de l'alarme**.
