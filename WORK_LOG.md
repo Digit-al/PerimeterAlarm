@@ -5,13 +5,13 @@
 
 ---
 
-## Current State (last updated: 2026-09-23)
+## Current State (last updated: 2026-09-24)
 
 **Branch**: `main`  
-**Last commit**: `9b0c396` — fix: adaptive audio routing — alarm plays on media stream when headphones connected  
+**Last commit**: `842a26a` — feat: media volume boost during alarm + music auto-resume  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: tag `1.0.0` = `9b0c396` (asset replaced 2026-09-23, 11.6 MB, notes updated; F-Droid ref → `9b0c396`).  
-**User testing**: (1) Morning alarm (Boulot, 07:00–08:15) **did NOT ring on 2026-09-22** — fixed in `170406f`, awaiting overnight validation. (2) Debug page showed `prochain=—` persistently for Boulot (active, in period, 569 m) — root cause: `publishStatuses` called before tracker creation + no GPS fix timeout → loop blocked. Fixed in `e307a20`. (3) **Alarm still played on the phone speaker with BT earbuds plugged in** (audio focus v1 was not enough — the alarm stream stays pinned to the speaker on device even with focus held) — fixed in `9b0c396` with adaptive media/alarm stream routing, awaiting device validation.
+**Release 1.0.0**: tag `1.0.0` = `842a26a` (asset replaced 2026-09-24, 11.6 MB, notes updated; F-Droid ref → `842a26a`).  
+**User testing**: (1) Morning alarm (Boulot, 07:00–08:15) **did NOT ring on 2026-09-22** — fixed in `170406f`, awaiting overnight validation. (2) Debug page `prochain=—` — fixed in `e307a20`. (3) Alarm on speaker with BT earbuds — fixed in `9b0c396` (adaptive media/alarm stream routing), **validated on device 2026-09-24** (« ça passe bien dans les écouteurs »). (4) **Now to validate in `842a26a`**: media volume boost (slider = perceived level through headphones, boost only after the music has stopped, restore before focus release) and **music auto-resume** after the alarm is dismissed (`AUDIOFOCUS_GAIN_TRANSIENT`).
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -40,11 +40,13 @@
 - [x] **Robust period-boundary wake** — 2 h sleep cap (self-correcting), exact alarm armed at the exact next period start for any sleep, re-armed on service destroy; Debug shows the service last-update time (`170406f`)
 - [x] **Debug « prochain=— » fix** — GPS fix timeout (15 s) + status publish before the fix, so the debug page always shows a valid next-check time (`e307a20`)
 - [x] **Alarm sound follows connected headphones** (v1) — audio focus requested on the `USAGE_ALARM` stream before playback (`AudioFocusRequest`, shared while ≥1 alarm is playing, abandoned when the last stops), so the ringtone routes to wired/Bluetooth headphones instead of staying on the phone speaker
-- [x] **Adaptive audio routing** (v2, after user reported the alarm still on speaker with BT earbuds) — the player now checks connected outputs before playback: external output (wired/USB/BLE/Bluetooth A2DP, dock…) → **`USAGE_MEDIA`** (always mixed to the active output = headphones); speaker only → **`USAGE_ALARM`** (independent volume, audible in silent). `recheckOutput()` is called on every monitoring cycle while an alarm is ringing → the player restarts on the appropriate stream if the user plugs/unplugs headphones mid-alarm (`9b0c396`)
+- [x] **Adaptive audio routing** (v2, after user reported the alarm still on speaker with BT earbuds) — the player now checks connected outputs before playback: external output (wired/USB/BLE/Bluetooth A2DP, dock…) → **`USAGE_MEDIA`** (always mixed to the active output = headphones); speaker only → **`USAGE_ALARM`** (independent volume, audible in silent). `recheckOutput()` is called on every monitoring cycle while an alarm is ringing → the player restarts on the appropriate stream if the user plugs/unplugs headphones mid-alarm (`9b0c396`). **Validated on device 2026-09-24** ✅
+- [x] **Media volume boost + music auto-resume** (`842a26a`) — while ≥1 alarm plays on the external output **and** the focus is granted, the system media volume is raised to its max so the alarm slider = perceived level; original volume restored when the last external alarm stops. Boost only **after** the focus is really granted (GRANTED return, or `onAudioFocusChange(GAIN)` when DELAYED) → the music is never made louder; restore **before** the focus release → the music resumes at its original volume. Focus is requested as **`AUDIOFOCUS_GAIN_TRANSIENT`** so the paused player receives `LOSS_TRANSIENT` and **resumes automatically** when the focus is released after the alarm is dismissed. On focus LOSS (call, …): alarm keeps playing, volume restored.
 - [x] **Per-alarm « can ring several times per period » option** — `Alarm.retriggerable` (nullable `Boolean?`, default `true` = original behavior; Gson-null normalized in `loadAlarms()`). When off, the tracker keeps `triggered=true` after exit (sound still stops) so the alarm rings once per validity period; tracker dropped at period end re-arms it automatically. Toggle in the editor (Period card, hidden for one-shot) + FR/EN strings
 
 ### What's pending / next
-- [ ] User validation of the headphone routing **v2** (`9b0c396`): alarm rings through wired/Bluetooth headphones when plugged in, and switches streams if the output changes mid-alarm
+- [ ] User validation of the **media volume boost** (`842a26a`): through headphones, alarm level = slider (media volume jumps to max only after the music stopped, and is restored to its original value when the alarm stops — no audible drop)
+- [ ] User validation of the **music auto-resume** after the alarm is dismissed (depends on the player honouring the transient-focus contract — Spotify/YouTube Music do)
 - [ ] User validation of the « can ring several times per period » option (toggle off → single ring per period)
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
 - [ ] User validation of export/import on device
@@ -63,6 +65,20 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-24 (media volume boost + music auto-resume — `842a26a`)
+
+**Context**: David valide le routage écouteurs (« ça passe bien dans les écouteurs maintenant ») et demande : (1) d'implémenter la gestion du volume discutée la veille (boost du volume média au niveau du slider le temps de l'alarme, posé **seulement après** que la musique est coupée, sinon « ça risque de faire bizarre ») ; (2) que **la musique reprenne après l'arrêt de l'alarme**.
+
+**Implémentation** (`842a26a` — `AlarmSoundPlayer.kt` seul) :
+- **Boost du volume média** : tant qu'≥1 alarme joue sur la sortie externe **et** que le focus est accordé, `setStreamVolume(STREAM_MUSIC, getStreamMaxVolume(STREAM_MUSIC), 0)` → le niveau perçu de la sonnerie = exactement le slider (0..1). Volume d'origine sauvegardé **une seule fois** (`originalMediaVolume`), restauré à l'arrêt de la dernière alarme externe (ou si le focus est perdu : appel…). API vérifiées dans les stubs : `getStreamMaxVolume`, `setStreamVolume(int,int,int)`, constante `STREAM_MUSIC = 3` (pas de `STREAM_MEDIA` ici).
+- **Ordonnancement** : boost uniquement **après** focus réellement accordé — retour `AUDIOFOCUS_REQUEST_GRANTED`, ou callback `onAudioFocusChange(GAIN)` si `DELAYED` (la musique continue de jouer tant que focus différé → pas de boost, la musique n'est jamais rendue plus forte). Restauration du volume **avant** `abandonAudioFocusRequest` → la musique reprend à son volume d'origine, sans « ploc ». Le listener (avant no-op) gère maintenant GAIN (boost) et LOSS/LOSS_TRANSIENT/CAN_DUCK (restauration + l'alarme continue de sonner).
+- **Reprise de la musique** : le focus passe de `AUDIOFOCUS_GAIN` à **`AUDIOFOCUS_GAIN_TRANSIENT`** → les autres lecteurs reçoivent `LOSS_TRANSIENT` et, par contrat de focus audio, reprennent d'eux-mêmes quand le focus est rendu (à l'arrêt de l'alarme). C'est le seul mécanisme public possible (on ne contrôle pas les lecteurs des autres apps).
+- Docs : README.md, README.fr.md, PROMPT.md. Release 1.0.0 rafraîchie (asset 585389250, tag → `842a26a`, notes, F-Droid ref) ; push `main` via HTTPS token.
+
+**Next** : validation appareil — (a) volume dans les écouteurs = slider (et volume média restauré à l'arrêt), (b) musique qui reprend après l'alarme.
+
+---
 
 ### Session 2026-09-23 (alarm still on speaker with BT earbuds → adaptive output routing)
 
