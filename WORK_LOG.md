@@ -5,13 +5,13 @@
 
 ---
 
-## Current State (last updated: 2026-09-24)
+## Current State (last updated: 2026-09-28)
 
 **Branch**: `main`  
-**Last commit**: `842a26a` — feat: media volume boost during alarm + music auto-resume  
+**Last commit**: `49c01c6` — fix: boost the ACTIVE stream (alarm OR media) to max while the alarm rings  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: tag `1.0.0` = `842a26a` (asset replaced 2026-09-24, 11.6 MB, notes updated; F-Droid ref → `842a26a`).  
-**User testing**: (1) Morning alarm (Boulot, 07:00–08:15) **did NOT ring on 2026-09-22** — fixed in `170406f`, awaiting overnight validation. (2) Debug page `prochain=—` — fixed in `e307a20`. (3) Alarm on speaker with BT earbuds — fixed in `9b0c396` (adaptive media/alarm stream routing), **validated on device 2026-09-24** (« ça passe bien dans les écouteurs »). (4) **Now to validate in `842a26a`**: media volume boost (slider = perceived level through headphones, boost only after the music has stopped, restore before focus release) and **music auto-resume** after the alarm is dismissed (`AUDIOFOCUS_GAIN_TRANSIENT`).
+**Release 1.0.0**: tag `1.0.0` = `49c01c6` (asset refreshed 2026-09-28 — raw-binary upload, md5 verified; F-Droid ref → `49c01c6`).  
+**User testing**: (3) Routage écouteurs **validé sur appareil 2026-09-24** (« ça passe bien dans les écouteurs »). (4) Dans `842a26a`, « le son n'est pas au maximum malgré un slider à fond » — causes trouvées et corrigées dans `49c01c6` (flux alarme non boosté en mode haut-parleur + lecteur enregistré après la demande de focus). **À valider dans `49c01c6`** : slider à fond = max (haut-parleur ET écouteurs), restauration du volume d'origine à l'arrêt, reprise auto de la musique.
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -45,7 +45,7 @@
 - [x] **Per-alarm « can ring several times per period » option** — `Alarm.retriggerable` (nullable `Boolean?`, default `true` = original behavior; Gson-null normalized in `loadAlarms()`). When off, the tracker keeps `triggered=true` after exit (sound still stops) so the alarm rings once per validity period; tracker dropped at period end re-arms it automatically. Toggle in the editor (Period card, hidden for one-shot) + FR/EN strings
 
 ### What's pending / next
-- [ ] User validation of the **media volume boost** (`842a26a`): through headphones, alarm level = slider (media volume jumps to max only after the music stopped, and is restored to its original value when the alarm stops — no audible drop)
+- [ ] User validation of the **active-stream volume boost** (`49c01c6`): slider at max = maximum in both speaker mode and headphones mode; original volume restored when the alarm stops (no audible drop)
 - [ ] User validation of the **music auto-resume** after the alarm is dismissed (depends on the player honouring the transient-focus contract — Spotify/YouTube Music do)
 - [ ] User validation of the « can ring several times per period » option (toggle off → single ring per period)
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
@@ -65,6 +65,25 @@
 ---
 
 ## Session Log
+
+### Session 2026-09-28 (slider à fond mais pas au max → boost du flux ACTIF — `49c01c6`)
+
+**Contexte** : David : « Le son n'est pas au maximum malgré un slider a fond. » Environnement changé : nouveau container, projet sous `/home/d1f34069/PerimetreAlarm` (plus `/home/user/`), SDK `/home/d1f34069/android-sdk` (`local.properties` corrigé, non tracké). Un premier passage avait été buildé et partagé en inline, puis l'arbre a été **réinitialisé à `3ca5cbb`** (« j'ai dû écraser tes changements ») — tout re-appliqué le même jour, et cette fois le token était dispo.
+
+**Diagnostic** (deux causes cumulées) :
+- Mode haut-parleur (pas de sortie externe) : l'alarme joue sur le **flux alarme** (`USAGE_ALARM`) — seul le flux média était boosté → perçu = slider × **volume alarme système** (tel quel) → jamais le max réel, même slider à fond.
+- Mode écouteurs : le boost ne passait que par le callback asynchrone `onAudioFocusChange(GAIN)` ; sur le chemin GRANTED immédiat, `ensureFocus()` s'exécutait **avant** l'enregistrement du lecteur dans `players` → le contrôle du boost voyait zéro alarme active (pas de boost).
+
+**Fix** (`49c01c6` — `AlarmSoundPlayer.kt` seul) :
+- L'entrée lecteur est enregistrée dans `players` **avant** `ensureFocus()` (retirée en cas d'erreur).
+- `syncMediaVolume()` → `syncStreamVolume()` : booste le **flux actif** — `STREAM_MUSIC` si une alarme active joue sur une sortie externe, sinon `STREAM_ALARM` — à `getStreamMaxVolume` (perçu = exactement le slider ; slider à fond = max). Volume d'origine sauvegardé **par flux** (`originalMediaVolume`/`originalAlarmVolume`), restauration des deux flux avant libération du focus et sur LOSS.
+- Docs : README.md, README.fr.md, PROMPT.md, WORK_LOG.md.
+
+**Release** (token `~/.github_token` dispo cette fois) : push `main` + tag `1.0.0` → `49c01c6` ; asset précédent supprimé, nouveau APK uploadé en **binaire brut** (md5 vérifié après téléchargement) ; notes de release à jour.
+
+**Next** : validation utilisateur du build `49c01c6` (slider à fond = max en haut-parleur ET écouteurs, restauration du volume à l'arrêt, reprise auto de la musique).
+
+---
 
 ### Session 2026-09-24 (asset release corrompu — upload en binaire brut)
 
