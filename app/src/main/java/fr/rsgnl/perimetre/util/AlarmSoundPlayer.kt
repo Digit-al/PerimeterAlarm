@@ -28,12 +28,13 @@ import android.os.VibratorManager
  * - sinon, la sonnerie est jouée sur le **flux alarme** (`USAGE_ALARM`) : volume
  *   indépendant du volume média, audible même en mode silencieux.
  *
- * **Volume pendant la lecture sur écouteurs** (flux média) : le volume du lecteur
- * est le slider de l'alarme (0..1), appliqué par-dessus le **volume média
- * système** — le niveau perçu serait donc « slider × volume média ». Pour que
- * le slider corresponde au niveau perçu, le volume média système est **temporairement
- * mis au maximum** tant qu'une alarme joue sur la sortie externe, puis restauré
- * à sa valeur d'origine à l'arrêt.
+ * **Volume pendant la lecture** : le volume du lecteur est le slider de l'alarme
+ * (0..1), appliqué par-dessus le **volume système du flux actif** (média si
+ * sortie externe, sinon alarme) — le niveau perçu serait donc « slider × volume
+ * système du flux ». Pour que le slider corresponde au niveau perçu (en
+ * particulier **slider à fond = maximum**), le volume système du flux actif est
+ * **temporairement mis au maximum** tant qu'une alarme sonne, puis restauré à
+ * sa valeur d'origine à l'arrêt.
  *
  * **Ordre des opérations** (pour éviter tout effet audible parasite) :
  *
@@ -41,8 +42,8 @@ import android.os.VibratorManager
  *   (c'est à cet instant que la musique en cours reçoit son événement de pause) :
  *   immédiatement si `requestAudioFocus` renvoie GRANTED, sinon au callback
  *   `onAudioFocusChange(GAIN)` si elle renvoie DELAYED ;
- * - le volume média est **restauré avant** de libérer le focus : la musique
- *   repart donc à sa volume d'origine, sans « ploc » de baisse audible.
+ * - le volume est **restauré avant** de libérer le focus : la musique repart
+ *   donc à son volume d'origine, sans « ploc » de baisse audible.
  *
  * **Focus audio** (demandé sur le flux actif, partagé tant qu'au moins une
  * alarme sonne, libéré quand la dernière s'arrête) :
@@ -75,8 +76,9 @@ class AlarmSoundPlayer {
     private var focusHeld = false          // focus réellement accordé
     private var focusPending = false       // DELAYED : en attente du callback GAIN
 
-    // Volume média système d'origine, sauvegardé avant le boost (null = pas de boost).
+    // Volumes système d'origine, sauvegardés avant le boost (null = pas boosté).
     private var originalMediaVolume: Int? = null
+    private var originalAlarmVolume: Int? = null
 
     private val focusListener = object : AudioManager.OnAudioFocusChangeListener {
         override fun onAudioFocusChange(focusChange: Int) {
@@ -84,20 +86,20 @@ class AlarmSoundPlayer {
                 AudioManager.AUDIOFOCUS_GAIN -> {
                     // Focus accordé (immédiatement après la demande, ou après un
                     // DELAYED) : la musique en cours vient de recevoir son
-                    // événement de pause → on peut poser le boost du volume média.
+                    // événement de pause → on peut poser le boost du volume.
                     focusHeld = true
                     focusPending = false
-                    syncMediaVolume()
+                    syncStreamVolume()
                 }
                 AudioManager.AUDIOFOCUS_LOSS,
                 AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
                 AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
                     // Un autre app a pris l'audio (appel, …). L'alarme continue
-                    // de sonner quoi qu'il arrive, mais on rend au volume média
-                    // sa valeur d'origine.
+                    // de sonner quoi qu'il arrive, mais on rend aux flux leur
+                    // volume d'origine.
                     focusHeld = false
                     focusPending = false
-                    restoreMediaVolume()
+                    restoreAllStreamVolumes()
                 }
             }
         }
@@ -132,13 +134,16 @@ class AlarmSoundPlayer {
             mp.isLooping = loop
             mp.setVolume(v, v)
             mp.prepare()
-            // Focus audio sur le flux correspondant (le boost du volume média
-            // ne sera posé qu'une fois le focus réellement accordé).
+            // Enregistré AVANT la demande de focus : le boost du volume du flux
+            // actif (syncStreamVolume) consulte la liste des lecteurs en cours.
+            players[id] = SoundEntry(mp, uriToStore, v, loop, external)
+            // Focus audio sur le flux correspondant (le boost ne sera posé
+            // qu'une fois le focus réellement accordé).
             ensureFocus(usage)
             mp.start()
-            players[id] = SoundEntry(mp, uriToStore, v, loop, external)
             mp = null
         } catch (ignored: Exception) {
+            players.remove(id)
             mp?.release()
         }
     }
@@ -168,16 +173,16 @@ class AlarmSoundPlayer {
             }
         }
         if (players.isEmpty()) {
-            // 1) Restaurer le volume média TANT QU'ON A ENCORE LE FOCUS
-            //    (rien d'autre ne joue sur le flux média),
+            // 1) Restaurer les volumes TANT QU'ON A ENCORE LE FOCUS (rien
+            //    d'autre ne joue sur le flux actif),
             // 2) puis libérer le focus → la musique reprend à son volume
             //    d'origine, sans baisse audible.
-            restoreMediaVolume()
+            restoreAllStreamVolumes()
             releaseFocus()
         } else {
             // D'autres alarmes sonnent encore : mettre à jour l'état du
-            // boost (la liste des sorties externes a pu changer).
-            syncMediaVolume()
+            // boost (la sortie connectée a pu changer entre-temps).
+            syncStreamVolume()
         }
     }
 
@@ -189,7 +194,7 @@ class AlarmSoundPlayer {
      * Demande le focus audio (transitoire) sur le flux [usage] (alarme ou média).
      * Une seule demande est partagée entre toutes les alarmes sonnant en même
      * temps ; si le flux change en cours de route, l'ancien focus est d'abord
-     * libéré (et le volume média restauré).
+     * libéré (et les volumes restaurés).
      *
      * `AUDIOFOCUS_GAIN_TRANSIENT` : les autres lecteurs reçoivent
      * `LOSS_TRANSIENT` et reprennent d'eux-mêmes quand le focus est rendu.
@@ -219,12 +224,12 @@ class AlarmSoundPlayer {
             when (am.requestAudioFocus(request)) {
                 AudioManager.AUDIOFOCUS_REQUEST_GRANTED -> {
                     // Focus accordé : la musique en cours vient de recevoir son
-                    // événement de pause → on peut poser le boost. (Le callback
-                    // GAIN du listener le confirmera ; syncMediaVolume est
-                    // idempotent.)
+                    // événement de pause → on peut poser le boost du volume.
+                    // (Le callback GAIN du listener le confirmera ;
+                    // syncStreamVolume est idempotent.)
                     focusHeld = true
                     focusPending = false
-                    syncMediaVolume()
+                    syncStreamVolume()
                 }
                 AudioManager.AUDIOFOCUS_REQUEST_DELAYED -> {
                     // La musique continue de jouer : le boost attendra le
@@ -233,7 +238,7 @@ class AlarmSoundPlayer {
                 }
                 else -> {
                     // FAILED : l'alarme joue sans focus (repli : niveau
-                    // slider × volume média courant, pas de boost).
+                    // slider × volume système courant, pas de boost).
                     focusPending = false
                 }
             }
@@ -242,7 +247,7 @@ class AlarmSoundPlayer {
         }
     }
 
-    /** Libère le focus audio (l'appelant gère l'ordre du volume). */
+    /** Libère le focus audio (l'appelant gère l'ordre des volumes). */
     private fun releaseFocus() {
         val req = focusRequest
         focusRequest = null
@@ -260,35 +265,64 @@ class AlarmSoundPlayer {
     }
 
     /**
-     * Synchronise le volume média système avec l'état de lecture :
+     * Synchronise le volume système du flux **actif** avec l'état de lecture :
      *
-     * - tant qu'au moins une alarme joue sur une sortie externe **et** que le
-     *   focus est accordé → volume média au **maximum** (le niveau perçu de la
-     *   sonnerie devient alors exactement son slider) ;
-     * - sinon → restauration du volume média d'origine (une seule fois).
+     * - tant qu'au moins une alarme sonne **et** que le focus est accordé →
+     *   le flux actif (média si une sortie externe est connectée, sinon
+     *   alarme) est mis au **maximum** : le niveau perçu de la sonnerie
+     *   devient alors exactement son slider (0..1) ;
+     * - sinon → restauration des volumes d'origine des deux flux.
      */
-    private fun syncMediaVolume() {
+    private fun syncStreamVolume() {
         val ctx = appContext ?: return
         val am = ctx.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val externalPlaying = players.values.any { it.externalOutput }
-        if (externalPlaying && focusHeld) {
-            val max = runCatching { am.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }.getOrNull() ?: return
-            if (originalMediaVolume == null) {
-                originalMediaVolume = runCatching { am.getStreamVolume(AudioManager.STREAM_MUSIC) }.getOrNull()
+        if (focusHeld) {
+            if (externalPlaying) {
+                boostStream(am, AudioManager.STREAM_MUSIC)
+                restoreStream(am, AudioManager.STREAM_ALARM)
+            } else {
+                boostStream(am, AudioManager.STREAM_ALARM)
+                restoreStream(am, AudioManager.STREAM_MUSIC)
             }
-            runCatching { am.setStreamVolume(AudioManager.STREAM_MUSIC, max, 0) }
         } else {
-            restoreMediaVolume()
+            restoreStream(am, AudioManager.STREAM_MUSIC)
+            restoreStream(am, AudioManager.STREAM_ALARM)
         }
     }
 
-    /** Restaure le volume média d'origine (no-op si aucun boost en cours). */
-    private fun restoreMediaVolume() {
-        val original = originalMediaVolume ?: return
-        originalMediaVolume = null
+    /**
+     * Met [stream] au maximum système, en sauvegardant son volume d'origine
+     * la première fois (null = pas encore boosté).
+     */
+    private fun boostStream(am: AudioManager, stream: Int) {
+        val max = runCatching { am.getStreamMaxVolume(stream) }.getOrNull() ?: return
+        if (stream == AudioManager.STREAM_MUSIC) {
+            if (originalMediaVolume == null) {
+                originalMediaVolume = runCatching { am.getStreamVolume(stream) }.getOrNull()
+            }
+        } else {
+            if (originalAlarmVolume == null) {
+                originalAlarmVolume = runCatching { am.getStreamVolume(stream) }.getOrNull()
+            }
+        }
+        runCatching { am.setStreamVolume(stream, max, 0) }
+    }
+
+    /** Restaure le volume d'origine de [stream] (no-op s'il n'a pas été boosté). */
+    private fun restoreStream(am: AudioManager, stream: Int) {
+        val original = if (stream == AudioManager.STREAM_MUSIC) originalMediaVolume else originalAlarmVolume
+        if (original == null) return
+        if (stream == AudioManager.STREAM_MUSIC) originalMediaVolume = null else originalAlarmVolume = null
+        runCatching { am.setStreamVolume(stream, original, 0) }
+    }
+
+    /** Restaure les deux flux (à l'arrêt, ou si le focus est perdu). */
+    private fun restoreAllStreamVolumes() {
         val ctx = appContext ?: return
         val am = ctx.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        runCatching { am.setStreamVolume(AudioManager.STREAM_MUSIC, original, 0) }
+        restoreStream(am, AudioManager.STREAM_MUSIC)
+        restoreStream(am, AudioManager.STREAM_ALARM)
     }
 
     /**
@@ -348,7 +382,7 @@ class AlarmSoundPlayer {
     }
 
     fun release() {
-        stopAllSounds()   // inclut restauration du volume + libération du focus
+        stopAllSounds()   // inclut restauration des volumes + libération du focus
         stopVibrationAll()
     }
 
