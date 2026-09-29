@@ -11,7 +11,7 @@
 **Last commit**: `49c01c6` — fix: boost the ACTIVE stream (alarm OR media) to max while the alarm rings  
 **Build**: ✅ assembles successfully (debug + release APK)  
 **Release 1.0.0**: tag `1.0.0` = `49c01c6` (asset refreshed 2026-09-28 — raw-binary upload, md5 verified; F-Droid ref → `49c01c6`).  
-**User testing**: (3) Routage écouteurs **validé sur appareil 2026-09-24** (« ça passe bien dans les écouteurs »). (4) Dans `842a26a`, « le son n'est pas au maximum malgré un slider à fond » — causes trouvées et corrigées dans `49c01c6` (flux alarme non boosté en mode haut-parleur + lecteur enregistré après la demande de focus). **À valider dans `49c01c6`** : slider à fond = max (haut-parleur ET écouteurs), restauration du volume d'origine à l'arrêt, reprise auto de la musique.
+**User testing**: (3) Routage écouteurs **validé sur appareil 2026-09-24** (« ça passe bien dans les écouteurs »). (4) « Slider à fond mais pas au max » — corrigé dans `49c01c6` (flux alarme non boosté en mode haut-parleur + lecteur enregistré après la demande de focus) et **validé sur appareil 2026-09-28** (« ça fonctionne »).
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -45,7 +45,7 @@
 - [x] **Per-alarm « can ring several times per period » option** — `Alarm.retriggerable` (nullable `Boolean?`, default `true` = original behavior; Gson-null normalized in `loadAlarms()`). When off, the tracker keeps `triggered=true` after exit (sound still stops) so the alarm rings once per validity period; tracker dropped at period end re-arms it automatically. Toggle in the editor (Period card, hidden for one-shot) + FR/EN strings
 
 ### What's pending / next
-- [ ] User validation of the **active-stream volume boost** (`49c01c6`): slider at max = maximum in both speaker mode and headphones mode; original volume restored when the alarm stops (no audible drop)
+- [x] User validation of the **active-stream volume boost** (`49c01c6`) — validated on device 2026-09-28 (slider at max = maximum, speaker and headphones; volume restored on stop)
 - [ ] User validation of the **music auto-resume** after the alarm is dismissed (depends on the player honouring the transient-focus contract — Spotify/YouTube Music do)
 - [ ] User validation of the « can ring several times per period » option (toggle off → single ring per period)
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
