@@ -517,6 +517,15 @@ class LocationMonitorService : Service() {
             CHANNEL_ALARM, getString(R.string.notif_channel_alarm_name), NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = getString(R.string.notif_channel_alarm_desc)
+            // Pas de son (ni vibration) par défaut du canal : la sonnerie est
+            // jouée par le service (AlarmSoundPlayer), qui respecte le slider de
+            // volume de l'alarme. Sans cela, Android joue EN PLUS le son
+            // d'alarme système par défaut du canal, à plein volume, dès que la
+            // notification d'alarme est affichée — ce qui rendait le slider
+            // inopérant (toujours perçu « au maximum »).
+            setSound(null, null)
+            enableVibration(false)
+            enableLights(false)
         }
         manager.createNotificationChannel(monitor)
         manager.createNotificationChannel(alarm)
