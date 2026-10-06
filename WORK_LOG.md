@@ -5,13 +5,13 @@
 
 ---
 
-## Current State (last updated: 2026-09-28)
+## Current State (last updated: 2026-10-06)
 
 **Branch**: `main`  
-**Last commit**: `49c01c6` — fix: boost the ACTIVE stream (alarm OR media) to max while the alarm rings  
+**Last commit**: `77a1cd1` — fix: silence the alarm notification channel sound so the slider is honored  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: tag `1.0.0` = `49c01c6` (asset refreshed 2026-09-28 — raw-binary upload, md5 verified; F-Droid ref → `49c01c6`).  
-**User testing**: (3) Routage écouteurs **validé sur appareil 2026-09-24** (« ça passe bien dans les écouteurs »). (4) « Slider à fond mais pas au max » — corrigé dans `49c01c6` (flux alarme non boosté en mode haut-parleur + lecteur enregistré après la demande de focus) et **validé sur appareil 2026-09-28** (« ça fonctionne »).
+**Release 1.0.0**: tag `1.0.0` = `77a1cd1` (asset refreshed 2026-10-06 — raw-binary upload, md5 verified; F-Droid ref → `77a1cd1`).  
+**User testing**: (4) « Slider à fond mais pas au max » — corrigé dans `49c01c6`, **validé sur appareil 2026-09-28** (« ça fonctionne »). (5) « Le son est toujours augmenté à 100 % quel que soit le slider » — cause trouvée : le canal de notification `perimetre_alarm` (IMPORTANCE_HIGH) jouait son **son par défaut système** (plein volume, indépendant du slider) en plus de la sonnerie du lecteur ; corrigé dans `77a1cd1` (`setSound(null)` sur le canal). **À valider dans `77a1cd1`** : le slider règle bien le niveau perçu entre 0 et 100 %.
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -46,6 +46,7 @@
 
 ### What's pending / next
 - [x] User validation of the **active-stream volume boost** (`49c01c6`) — validated on device 2026-09-28 (slider at max = maximum, speaker and headphones; volume restored on stop)
+- [ ] User validation of `77a1cd1`: the slider now actually sets the perceived level (0 → silent, 50 % → half, 100 % → max); the notification no longer plays its own full-volume alarm tone
 - [ ] User validation of the **music auto-resume** after the alarm is dismissed (depends on the player honouring the transient-focus contract — Spotify/YouTube Music do)
 - [ ] User validation of the « can ring several times per period » option (toggle off → single ring per period)
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
@@ -65,6 +66,20 @@
 ---
 
 ## Session Log
+
+### Session 2026-10-06 (son toujours à 100 % quel que soit le slider → son du canal de notification — `77a1cd1`)
+
+**Contexte** : David : « le son est toujours augmenté à 100 % quel que soit la configuration du slider de l'alarme. » Le chainage slider → `MediaPlayer.setVolume` a été vérifié de bout en bout (UI 0..1, modèle `SoundSettings` 0..1 + `normalized()`, persistance Gson, `setVolume(v, v)` dans le lecteur) — **correct**.
+
+**Diagnostic** : au déclenchement, le service poste aussi une **notification** sur le canal `perimetre_alarm` (`IMPORTANCE_HIGH`), créé **sans son custom**. Android joue alors automatiquement le **son par défaut du canal** (ton d'alarme système, flux alarme, **plein volume**) — en plus de la sonnerie du lecteur (seule à respecter le slider). Résultat perçu : un son toujours au maximum, quel que soit le slider. (Le canal jouait aussi sa vibration par défaut en double avec le `Vibrator` du lecteur.)
+
+**Fix** (`77a1cd1` — `LocationMonitorService.kt`, canal créé dans `ensureChannels()`): `setSound(null, null)` + `enableVibration(false)` + `enableLights(false)` sur `perimetre_alarm`. Le seul son audible est celui du lecteur (slider × flux actif, boost du flux actif déjà en place via `49c01c6`) ; la vibration par alarme reste gérée par `AlarmSoundPlayer`.
+
+**Release** : push `main`, tag `1.0.0` → `77a1cd1`, asset APK remplacé (binaire brut, md5 vérifié), notes à jour. Docs : README.md, README.fr.md, PROMPT.md, WORK_LOG.md.
+
+**Next** : validation utilisateur du build `77a1cd1` (le slider règle bien le niveau perçu entre 0 et 100 %).
+
+---
 
 ### Session 2026-09-28 (slider à fond mais pas au max → boost du flux ACTIF — `49c01c6`)
 
