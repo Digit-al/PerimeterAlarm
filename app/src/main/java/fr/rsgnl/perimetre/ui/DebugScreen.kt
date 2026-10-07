@@ -101,11 +101,17 @@ fun DebugScreen(viewModel: AppViewModel) {
                 val speedStr = if (speed != null && speed > 0) {
                     "%.1f m/s".format(speed)
                 } else context.getString(R.string.unknown)
+                // Volume effectif réellement joué au déclenchement (résolu par le
+                // service) : slider de l'alarme, ou réglage par défaut applicatif.
+                val vol = (s?.effectiveVolume ?: a.sound.volume).coerceIn(0f, 1f)
+                val volStr = "${(vol * 100).toInt()}%"
+                val volSrc = if (s?.usesDefaultSound == true) "default" else "alarm"
                 val yn = { b: Boolean -> context.getString(if (b) R.string.yes else R.string.no) }
                 context.getString(
                     R.string.debug_line,
                     ts, a.displayName(context), yn(a.enabled), yn(inPeriod),
-                    Format.distanceToEntry(context, distEntry), speedStr, nextStr
+                    Format.distanceToEntry(context, distEntry), speedStr, nextStr,
+                    volStr, volSrc
                 )
             }
             // Plus récent en tête, plafonné à 300 lignes.

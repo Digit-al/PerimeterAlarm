@@ -428,12 +428,18 @@ class LocationMonitorService : Service() {
     /** Publie l'état de chaque alarme pour la page de debug. */
     private fun publishStatuses(alarms: List<Alarm>) {
         val loc = latestLocation.get()
+        // Volume effectif réellement joué au déclenchement : réglage de l'alarme,
+        // ou réglage « par défaut » applicatif si l'alarme y est paramétrée.
+        val defaults = repository.loadSettings()
         val map = HashMap<String, AlarmDebugStatus>()
         for (a in alarms) {
             val t = trackers[a.id]
             val inPeriod = isAlarmInPeriod(a)
             val distCenter = loc?.let { Geo.distanceMeters(it, a.latitude, a.longitude) }
             val distEntry = distCenter?.let { it - a.radiusMeters }
+            val usesDefault = a.sound.useDefault
+            val effVolume = (if (usesDefault) defaults.defaultSound else a.sound)
+                .volume.coerceIn(0f, 1f)
             map[a.id] = AlarmDebugStatus(
                 name = a.displayName(this),
                 enabled = a.enabled,
@@ -443,7 +449,9 @@ class LocationMonitorService : Service() {
                 nextCheckAtMs = t?.let { it.lastCheckMs + it.nextIntervalMs },
                 lastCheckAtMs = t?.lastCheckMs,
                 speedMps = t?.lastSpeedMps,
-                triggered = t?.triggered ?: false
+                triggered = t?.triggered ?: false,
+                effectiveVolume = effVolume,
+                usesDefaultSound = usesDefault
             )
         }
         MonitorStatus.publishAll(map)
@@ -514,19 +522,28 @@ class LocationMonitorService : Service() {
             description = getString(R.string.notif_channel_monitor_desc)
         }
         val alarm = NotificationChannel(
+            // IDENTIFIANT VERSIONNÉ (v2) : sur Android, les propriétés d'un
+            // canal de notification sont **immuables après sa création** — un
+            // `setSound(null)` posé au démarrage d'un process ne modifie pas
+            // un canal déjà créé sur l'appareil. Le canal « perimetre_alarm »
+            // (v1, créé avec les versions antérieures) portait le son par
+            // défaut du système (ton d'alarme, plein volume, indépendant du
+            // slider), joué par Android à chaque notification : c'est ce qui
+            // rendait le slider inopérant. Créer un canal NOUVEAU, silencieux
+            // à la création, est la seule façon fiable de le rendre muet.
             CHANNEL_ALARM, getString(R.string.notif_channel_alarm_name), NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = getString(R.string.notif_channel_alarm_desc)
             // Pas de son (ni vibration) par défaut du canal : la sonnerie est
             // jouée par le service (AlarmSoundPlayer), qui respecte le slider de
-            // volume de l'alarme. Sans cela, Android joue EN PLUS le son
-            // d'alarme système par défaut du canal, à plein volume, dès que la
-            // notification d'alarme est affichée — ce qui rendait le slider
-            // inopérant (toujours perçu « au maximum »).
+            // volume de l'alarme.
             setSound(null, null)
             enableVibration(false)
             enableLights(false)
         }
+        // Le canal v1 (avec son plein volume par défaut) n'est plus utilisé :
+        // le supprimer l'enlève des réglages système de notifications.
+        manager.deleteNotificationChannel(LEGACY_CHANNEL_ALARM)
         manager.createNotificationChannel(monitor)
         manager.createNotificationChannel(alarm)
     }
@@ -578,7 +595,10 @@ class LocationMonitorService : Service() {
     companion object {
         private const val TAG = "LocationMonitorService"
         private const val CHANNEL_MONITOR = "perimetre_monitor"
-        private const val CHANNEL_ALARM = "perimetre_alarm"
+        private const val CHANNEL_ALARM = "perimetre_alarm_v2"
+
+        /** Canal v1 (immuable, son plein volume par défaut) — à supprimer. */
+        private const val LEGACY_CHANNEL_ALARM = "perimetre_alarm"
         private const val NOTIF_ID_MONITOR = 100
         private const val ACTION_DISMISS = "fr.rsgnl.perimetre.ACTION_DISMISS"
         private const val EXTRA_ALARM_KEY = "alarm_key"

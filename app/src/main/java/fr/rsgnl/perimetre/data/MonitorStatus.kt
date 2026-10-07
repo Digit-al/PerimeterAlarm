@@ -15,6 +15,11 @@ import kotlinx.coroutines.flow.asStateFlow
  * @param nextCheckAtMs Instant (epoch ms) de la prochaine vérification planifiée par le service (null si none).
  * @param lastCheckAtMs Instant (epoch ms) de la dernière vérification effectuée (null si jamais).
  * @param speedMps Vitesse de rapprochement estimée (m/s). Positive si on se rapproche.
+ * @param effectiveVolume Volume effectif (0..1) que le service appliquera à la sonnerie
+ *                        de cette alarme : réglage de l'alarme, ou réglage « par défaut »
+ *                        applicatif si l'alarme y est paramétrée. Diagnostic utile pour
+ *                        vérifier quel volume sera réellement joué au déclenchement.
+ * @param usesDefaultSound Vrai si l'alarme utilise les réglages sonores par défaut applicatifs.
  */
 data class AlarmDebugStatus(
     val name: String,
@@ -25,7 +30,9 @@ data class AlarmDebugStatus(
     val nextCheckAtMs: Long?,
     val lastCheckAtMs: Long?,
     val speedMps: Double?,
-    val triggered: Boolean
+    val triggered: Boolean,
+    val effectiveVolume: Float = 1f,
+    val usesDefaultSound: Boolean = true
 )
 
 /**
