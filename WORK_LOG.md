@@ -8,10 +8,10 @@
 ## Current State (last updated: 2026-10-07)
 
 **Branch**: `main`  
-**Last commit**: `03ddc03` — fix: alarm notification sound — use a NEW silent channel (v2)  
+**Last commit**: `f48d5b2` — fix: set the ACTIVE stream directly to the slider level (not max+compensate)  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: tag `1.0.0` = `03ddc03` (asset refreshed 2026-10-07 — raw-binary upload, md5 verified; F-Droid ref → `03ddc03`).  
-**User testing**: (4) « Slider à fond mais pas au max » — corrigé dans `49c01c6`, **validé sur appareil 2026-09-28** (« ça fonctionne »). (5) « Le son est toujours augmenté à 100 % quel que soit le slider » — cause trouvée : le canal de notification `perimetre_alarm` (IMPORTANCE_HIGH) jouait son **son par défaut système** (plein volume, indépendant du slider) en plus de la sonnerie du lecteur ; corrigé dans `77a1cd1` (`setSound(null)` sur le canal) — **insuffisant** : les propriétés d'un canal sont immuables après création, le canal v1 continuait de sonner à plein volume. Vrai fix dans `03ddc03` (nouveau canal silencieux `perimetre_alarm_v2`, v1 supprimé). La page Debug affiche désormais le **volume effectif** par alarme (vol/volsrc). **À valider dans `03ddc03`** : le slider règle bien le niveau perçu entre 0 et 100 %.
+**Release 1.0.0**: tag `1.0.0` = `f48d5b2` (asset refreshed 2026-10-07 — raw-binary upload, md5 verified; F-Droid ref → `f48d5b2`).  
+**User testing**: (4) « Slider à fond mais pas au max » — corrigé dans `49c01c6`, **validé sur appareil 2026-09-28** (« ça fonctionne »). (5) « Le son est toujours augmenté à 100 % quel que soit le slider » — cause trouvée : le canal de notification `perimetre_alarm` (IMPORTANCE_HIGH) jouait son **son par défaut système** (plein volume, indépendant du slider) en plus de la sonnerie du lecteur ; corrigé dans `77a1cd1` (`setSound(null)` sur le canal) — **insuffisant** : les propriétés d'un canal sont immuables après création, le canal v1 continuait de sonner à plein volume. Vrai fix dans `03ddc03` (nouveau canal silencieux `perimetre_alarm_v2`, v1 supprimé). La page Debug affiche désormais le **volume effectif** par alarme (vol/volsrc). **Reste** : le volume perçu suivait bien le slider, mais le panneau de volume système affichait 100 % (boost au max + compensation) — corrigé dans `f48d5b2` (flux actif posé directement au niveau du slider). **À valider dans `f48d5b2`** : le panneau système affiche le niveau de l'alarme et il est ajustable.
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -46,7 +46,7 @@
 
 ### What's pending / next
 - [x] User validation of the **active-stream volume boost** (`49c01c6`) — validated on device 2026-09-28 (slider at max = maximum, speaker and headphones; volume restored on stop)
-- [ ] User validation of `03ddc03`: the slider now actually sets the perceived level (0 → silent, 50 % → half, 100 % → max); the notification no longer plays its own full-volume alarm tone (Debug page shows the effective volume per alarm)
+- [ ] User validation of `f48d5b2`: the system volume panel shows the alarm's actual level (not 100 %) and the user can lower it from there; 0 % = silent, 100 % = max
 - [ ] User validation of the **music auto-resume** after the alarm is dismissed (depends on the player honouring the transient-focus contract — Spotify/YouTube Music do)
 - [ ] User validation of the « can ring several times per period » option (toggle off → single ring per period)
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
@@ -66,6 +66,20 @@
 ---
 
 ## Session Log
+
+### Session 2026-10-07b (panneau système à 100 % → poser le flux au niveau du slider — `f48d5b2`)
+
+**Contexte** : David : la page Debug montre bien `vol=55 %`, mais « lorsque je veux diminuer le volume, il est initialement à 100 % » — la 2e capture montrait le **panneau de volume système à 100 %** pendant l'alarme.
+
+**Diagnostic** : l'ancien mécanisme (boost du flux actif au **maximum** + volume relatif `slider` dans le `MediaPlayer`) donnait bien le bon niveau perçu (55 %), mais le panneau système affichait 100 % — impossible de « descendre » proprement depuis le panneau.
+
+**Fix** (`f48d5b2` — `AlarmSoundPlayer.kt`) : les lecteurs jouent à **volume relatif 1.0** ; `syncStreamVolume()` pose le **flux actif directement au niveau du slider** (`setStreamVolume(stream, (level*max).roundToInt(), 0)`, `level` = slider du lecteur le plus fort). Résultat : le panneau système affiche le niveau réel de l'alarme et reste ajustable. Restauration du volume d'origine à l'arrêt inchangée.
+
+**Release** : push `main`, tag `1.0.0` → `f48d5b2`, asset APK remplacé (binaire brut, md5 vérifié), notes à jour.
+
+**Next** : validation utilisateur du build `f48d5b2` (panneau = niveau de l'alarme, ajustable ; 0 % silencieux, 100 % max).
+
+---
 
 ### Session 2026-10-07 (encore 100 % → canaux de notification IMMUTABLES — `03ddc03`)
 
