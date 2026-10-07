@@ -8,10 +8,10 @@
 ## Current State (last updated: 2026-10-07)
 
 **Branch**: `main`  
-**Last commit**: `f48d5b2` — fix: set the ACTIVE stream directly to the slider level (not max+compensate)  
+**Last commit**: `e93749f` — fix: make the alarm notification persistent so it cannot be dismissed  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: tag `1.0.0` = `f48d5b2` (asset refreshed 2026-10-07 — raw-binary upload, md5 verified; F-Droid ref → `f48d5b2`).  
-**User testing**: (4) « Slider à fond mais pas au max » — corrigé dans `49c01c6`, **validé sur appareil 2026-09-28** (« ça fonctionne »). (5) « Le son est toujours augmenté à 100 % quel que soit le slider » — cause trouvée : le canal de notification `perimetre_alarm` (IMPORTANCE_HIGH) jouait son **son par défaut système** (plein volume, indépendant du slider) en plus de la sonnerie du lecteur ; corrigé dans `77a1cd1` (`setSound(null)` sur le canal) — **insuffisant** : les propriétés d'un canal sont immuables après création, le canal v1 continuait de sonner à plein volume. Vrai fix dans `03ddc03` (nouveau canal silencieux `perimetre_alarm_v2`, v1 supprimé). La page Debug affiche désormais le **volume effectif** par alarme (vol/volsrc). **Reste** : le volume perçu suivait bien le slider, mais le panneau de volume système affichait 100 % (boost au max + compensation) — corrigé dans `f48d5b2` (flux actif posé directement au niveau du slider). **À valider dans `f48d5b2`** : le panneau système affiche le niveau de l'alarme et il est ajustable.
+**Release 1.0.0**: tag `1.0.0` = `e93749f` (asset refreshed 2026-10-07 — raw-binary upload, md5 verified; F-Droid ref → `e93749f`).  
+**User testing**: (4) « Slider à fond mais pas au max » — corrigé dans `49c01c6`, **validé sur appareil 2026-09-28** (« ça fonctionne »). (5) « Le son est toujours augmenté à 100 % quel que soit le slider » — cause trouvée : le canal de notification `perimetre_alarm` (IMPORTANCE_HIGH) jouait son **son par défaut système** (plein volume, indépendant du slider) en plus de la sonnerie du lecteur ; corrigé dans `77a1cd1` (`setSound(null)` sur le canal) — **insuffisant** : les propriétés d'un canal sont immuables après création, le canal v1 continuait de sonner à plein volume. Vrai fix dans `03ddc03` (nouveau canal silencieux `perimetre_alarm_v2`, v1 supprimé). La page Debug affiche désormais le **volume effectif** par alarme (vol/volsrc). **Reste** : le volume perçu suivait bien le slider, mais le panneau de volume système affichait 100 % (boost au max + compensation) — corrigé dans `f48d5b2` (flux actif posé directement au niveau du slider). La **notification d'alarme est rendue persistante** dans `e93749f` (`setOngoing` — plus balayable ; le bouton « Arrêter » est la seule façon de couper l'alarme ; `stopAlarmSound` retire la notification, aussi à l'arrêt automatique). **À valider** : dans `f48d5b2` le panneau système affiche le niveau de l'alarme et il est ajustable ; dans `e93749f` la notification ne se balance pas et le bouton « Arrêter » coupe bien l'alarme.
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -47,6 +47,7 @@
 ### What's pending / next
 - [x] User validation of the **active-stream volume boost** (`49c01c6`) — validated on device 2026-09-28 (slider at max = maximum, speaker and headphones; volume restored on stop)
 - [ ] User validation of `f48d5b2`: the system volume panel shows the alarm's actual level (not 100 %) and the user can lower it from there; 0 % = silent, 100 % = max
+- [ ] User validation of `e93749f`: the alarm notification cannot be swiped away, and its Stop button still cuts the alarm (and the notification disappears on auto-stop when leaving the perimeter)
 - [ ] User validation of the **music auto-resume** after the alarm is dismissed (depends on the player honouring the transient-focus contract — Spotify/YouTube Music do)
 - [ ] User validation of the « can ring several times per period » option (toggle off → single ring per period)
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
@@ -66,6 +67,22 @@
 ---
 
 ## Session Log
+
+### Session 2026-10-07c (notification d'alarme supprimable → persistante — `e93749f`)
+
+**Contexte** : David : « lorsque l'alarme se déclenche, le message de notification avec le bouton arrêter peut être enlevé par l'utilisateur. Il est alors impossible de couper l'alarme. »
+
+**Cause** : la notification d'alarme n'avait pas `setOngoing(true)` : l'utilisateur pouvait la balayer, et le son continuait sans moyen de l'arrêter (le bouton « Arrêter » partait avec la notification).
+
+**Fix** (`e93749f` — `LocationMonitorService.kt`) :
+- `setOngoing(true)` sur la notification d'alarme : elle n'est **plus supprimable** par l'utilisateur ; le bouton **Arrêter** reste la seule façon de couper l'alarme.
+- `stopAlarmSound` **retire aussi la notification** (`cancel(alarmId.hashCode())`, clé identique à `triggerAlarm`) : la notification disparaît dès que l'alarme s'arrête, **quelle que soit la cause** — bouton **ou** sortie automatique du périmètre (auparavant elle n'était annulée que depuis le handler du bouton : avec `setOngoing`, l'arrêt automatique aurait laissé une notification persistante).
+
+**Release** : push `main`, tag `1.0.0` → `e93749f`, asset APK remplacé (binaire brut, md5 vérifié), notes à jour.
+
+**Next** : validation utilisateur du build `e93749f` (notification non balayable ; bouton « Arrêter » coupe bien l'alarme ; notification retirée à l'arrêt automatique).
+
+---
 
 ### Session 2026-10-07b (panneau système à 100 % → poser le flux au niveau du slider — `f48d5b2`)
 
