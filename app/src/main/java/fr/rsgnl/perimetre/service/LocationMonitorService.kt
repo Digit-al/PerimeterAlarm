@@ -423,6 +423,9 @@ class LocationMonitorService : Service() {
     private fun stopAlarmSound(alarmId: String) {
         soundPlayer.stopSound(alarmId)
         soundPlayer.stopVibration(alarmId)
+        // Retire la notification d'alarme (persistante). Clé identique à celle de
+        // `triggerAlarm` : `alarmId.hashCode()`.
+        NotificationManagerCompat.from(this).cancel(alarmId.hashCode())
     }
 
     /** Publie l'état de chaque alarme pour la page de debug. */
@@ -586,7 +589,12 @@ class LocationMonitorService : Service() {
             .setContentText(getString(R.string.notif_alarm_text, alarm.radiusMeters))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
-            .setAutoCancel(true)
+            // Notification PERSISTANTE : l'utilisateur ne peut PAS la balayer/
+            // l'enlever manuellement (sinon le son continuerait sans moyen de
+            // l'arrêter, le bouton « Arrêter » partant avec la notification).
+            // L'action « Arrêter » ci-dessous reste bien disponible — c'est la
+            // seule façon de couper l'alarme.
+            .setOngoing(true)
             .addAction(NotificationCompat.Action.Builder(null, getString(R.string.notif_alarm_stop), pendingDismiss).build())
             .setContentIntent(pendingOpen)
             .build()
