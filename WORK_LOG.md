@@ -5,13 +5,13 @@
 
 ---
 
-## Current State (last updated: 2026-10-06)
+## Current State (last updated: 2026-10-07)
 
 **Branch**: `main`  
-**Last commit**: `77a1cd1` — fix: silence the alarm notification channel sound so the slider is honored  
+**Last commit**: `03ddc03` — fix: alarm notification sound — use a NEW silent channel (v2)  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: tag `1.0.0` = `77a1cd1` (asset refreshed 2026-10-06 — raw-binary upload, md5 verified; F-Droid ref → `77a1cd1`).  
-**User testing**: (4) « Slider à fond mais pas au max » — corrigé dans `49c01c6`, **validé sur appareil 2026-09-28** (« ça fonctionne »). (5) « Le son est toujours augmenté à 100 % quel que soit le slider » — cause trouvée : le canal de notification `perimetre_alarm` (IMPORTANCE_HIGH) jouait son **son par défaut système** (plein volume, indépendant du slider) en plus de la sonnerie du lecteur ; corrigé dans `77a1cd1` (`setSound(null)` sur le canal). **À valider dans `77a1cd1`** : le slider règle bien le niveau perçu entre 0 et 100 %.
+**Release 1.0.0**: tag `1.0.0` = `03ddc03` (asset refreshed 2026-10-07 — raw-binary upload, md5 verified; F-Droid ref → `03ddc03`).  
+**User testing**: (4) « Slider à fond mais pas au max » — corrigé dans `49c01c6`, **validé sur appareil 2026-09-28** (« ça fonctionne »). (5) « Le son est toujours augmenté à 100 % quel que soit le slider » — cause trouvée : le canal de notification `perimetre_alarm` (IMPORTANCE_HIGH) jouait son **son par défaut système** (plein volume, indépendant du slider) en plus de la sonnerie du lecteur ; corrigé dans `77a1cd1` (`setSound(null)` sur le canal) — **insuffisant** : les propriétés d'un canal sont immuables après création, le canal v1 continuait de sonner à plein volume. Vrai fix dans `03ddc03` (nouveau canal silencieux `perimetre_alarm_v2`, v1 supprimé). La page Debug affiche désormais le **volume effectif** par alarme (vol/volsrc). **À valider dans `03ddc03`** : le slider règle bien le niveau perçu entre 0 et 100 %.
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -46,7 +46,7 @@
 
 ### What's pending / next
 - [x] User validation of the **active-stream volume boost** (`49c01c6`) — validated on device 2026-09-28 (slider at max = maximum, speaker and headphones; volume restored on stop)
-- [ ] User validation of `77a1cd1`: the slider now actually sets the perceived level (0 → silent, 50 % → half, 100 % → max); the notification no longer plays its own full-volume alarm tone
+- [ ] User validation of `03ddc03`: the slider now actually sets the perceived level (0 → silent, 50 % → half, 100 % → max); the notification no longer plays its own full-volume alarm tone (Debug page shows the effective volume per alarm)
 - [ ] User validation of the **music auto-resume** after the alarm is dismissed (depends on the player honouring the transient-focus contract — Spotify/YouTube Music do)
 - [ ] User validation of the « can ring several times per period » option (toggle off → single ring per period)
 - [ ] User validation of the alarm volume fix (alarm at full volume with low media volume)
@@ -66,6 +66,22 @@
 ---
 
 ## Session Log
+
+### Session 2026-10-07 (encore 100 % → canaux de notification IMMUTABLES — `03ddc03`)
+
+**Contexte** : David : « ça ne fonctionne pas… toujours 100 % contrairement au slider qui est à 55 %. » Le chainage slider → `MediaPlayer.setVolume` est correct de bout en bout (vérifié UI, modèle, persistance Gson, lecteur).
+
+**Cause racine** : sur Android, les **propriétés d'un canal de notification sont immuables après sa création** — `setSound(null)` posé au démarrage ne modifie qu'un canal créé dans ce même process. Le canal v1 (`perimetre_alarm`) avait été créé par les versions antérieures **avec son son par défaut système** (ton d'alarme, plein volume, indépendant du slider) : le fix `77a1cd1` n'a donc eu aucun effet sur les appareils existants.
+
+**Fix** (`03ddc03`) :
+- Notification d'alarme publiée sur un **nouveau canal silencieux** `perimetre_alarm_v2` (créé avec `setSound(null)` + `enableVibration(false)` + `enableLights(false)` — le seul moyen fiable de le rendre muet), et suppression du canal v1 (`deleteNotificationChannel`).
+- **Diagnostic** : la page Debug affiche désormais par alarme le **volume effectif** que le service jouera (`vol`, 0–100 %) et sa provenance (`volsrc` : `alarm` = slider de l'alarme, `default` = réglages par défaut applicatifs) — le service résout exactement `alarm.sound.useDefault ? settings.defaultSound : alarm.sound`.
+
+**Release** : push `main`, tag `1.0.0` → `03ddc03`, asset APK remplacé (binaire brut, md5 vérifié), notes à jour.
+
+**Next** : validation utilisateur du build `03ddc03` (slider à 55 % → niveau perçu ~55 %, 0 % → silencieux). Si le volume perçu diffère encore, la page Debug (vol/volsrc) donne directement la valeur réellement jouée.
+
+---
 
 ### Session 2026-10-06 (son toujours à 100 % quel que soit le slider → son du canal de notification — `77a1cd1`)
 
