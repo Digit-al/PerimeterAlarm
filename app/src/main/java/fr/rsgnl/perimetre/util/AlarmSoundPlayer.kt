@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import kotlin.math.roundToInt
 
 /**
  * Lecture des alarmes : sonnerie (MediaPlayer, volume réglable, en boucle) + vibreur.
@@ -28,17 +29,17 @@ import android.os.VibratorManager
  * - sinon, la sonnerie est jouée sur le **flux alarme** (`USAGE_ALARM`) : volume
  *   indépendant du volume média, audible même en mode silencieux.
  *
- * **Volume pendant la lecture** : le volume du lecteur est le slider de l'alarme
- * (0..1), appliqué par-dessus le **volume système du flux actif** (média si
- * sortie externe, sinon alarme) — le niveau perçu serait donc « slider × volume
- * système du flux ». Pour que le slider corresponde au niveau perçu (en
- * particulier **slider à fond = maximum**), le volume système du flux actif est
- * **temporairement mis au maximum** tant qu'une alarme sonne, puis restauré à
- * sa valeur d'origine à l'arrêt.
+ * **Volume pendant la lecture** : les lecteurs sont à **volume relatif 1.0** ;
+ * le niveau perçu est porté par le **volume système du flux actif** (média si
+ * sortie externe, sinon alarme), posé **directement au niveau du slider**
+ * (0..1) tant qu'une alarme sonne, puis restauré à sa valeur d'origine à
+ * l'arrêt. Poser le niveau (et non un « boost » au maximum + compensation dans
+ * le lecteur) : le panneau de volume système affiche alors le niveau réel de
+ * l'alarme et l'utilisateur peut l'ajuster depuis là.
  *
  * **Ordre des opérations** (pour éviter tout effet audible parasite) :
  *
- * - le boost n'est posé **qu'après** que le focus audio est réellement accordé
+ * - la pose du niveau n'a lieu **qu'après** que le focus audio est réellement accordé
  *   (c'est à cet instant que la musique en cours reçoit son événement de pause) :
  *   immédiatement si `requestAudioFocus` renvoie GRANTED, sinon au callback
  *   `onAudioFocusChange(GAIN)` si elle renvoie DELAYED ;
@@ -132,10 +133,17 @@ class AlarmSoundPlayer {
             )
             mp.setDataSource(context, u)
             mp.isLooping = loop
-            mp.setVolume(v, v)
+            // Volume RELATIF plein : le niveau perçu est porté par le volume
+            // SYSTÈME du flux actif (syncStreamVolume), posé directement au
+            // niveau du slider. (Avec setVolume(v, v) + flux forcé à max, le
+            // panneau de volume système affichait 100 % et il était impossible
+            // de baisser le son : le niveau perçu n'était que « v × max ».
+            // Ici, lecteur à 1.0 → perçu = exactement le niveau système.)
+            mp.setVolume(1f, 1f)
             mp.prepare()
-            // Enregistré AVANT la demande de focus : le boost du volume du flux
-            // actif (syncStreamVolume) consulte la liste des lecteurs en cours.
+            // Enregistré AVANT la demande de focus : syncStreamVolume
+            // (qui pose le volume du flux actif au niveau du slider) consulte
+            // la liste des lecteurs en cours.
             players[id] = SoundEntry(mp, uriToStore, v, loop, external)
             // Focus audio sur le flux correspondant (le boost ne sera posé
             // qu'une fois le focus réellement accordé).
@@ -278,13 +286,17 @@ class AlarmSoundPlayer {
         val am = ctx.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val externalPlaying = players.values.any { it.externalOutput }
         if (focusHeld) {
-            if (externalPlaying) {
-                boostStream(am, AudioManager.STREAM_MUSIC)
-                restoreStream(am, AudioManager.STREAM_ALARM)
-            } else {
-                boostStream(am, AudioManager.STREAM_ALARM)
-                restoreStream(am, AudioManager.STREAM_MUSIC)
-            }
+            val activeStream = if (externalPlaying) AudioManager.STREAM_MUSIC else AudioManager.STREAM_ALARM
+            // Le niveau perçu = le volume SYSTÈME du flux actif (les lecteurs
+            // sont à volume relatif 1.0). On le pose directement au niveau du
+            // slider (pas à max) : le panneau de volume système affiche alors
+            // ce niveau et l'utilisateur peut l'ajuster.
+            // Le slider du lecteur le plus fort règle le niveau (plusieurs
+            // alarmes sonnant simultanément) ; 1.0 si aucune.
+            val level = players.values.map { it.volume }.maxOrNull() ?: 1f
+            applyStreamLevel(am, activeStream, level)
+            val otherStream = if (externalPlaying) AudioManager.STREAM_ALARM else AudioManager.STREAM_MUSIC
+            restoreStream(am, otherStream)
         } else {
             restoreStream(am, AudioManager.STREAM_MUSIC)
             restoreStream(am, AudioManager.STREAM_ALARM)
@@ -292,12 +304,16 @@ class AlarmSoundPlayer {
     }
 
     /**
-     * Met [stream] au maximum système, en sauvegardant son volume d'origine
-     * la première fois (null = pas encore boosté).
+     * Pose le volume système de [stream] à [level] (0..1) — c'est ce niveau
+     * qui sera perçu pour la sonnerie (les lecteurs sont à volume relatif
+     * 1.0). Le volume d'origine est sauvegardé la première fois (null = non
+     * posé). [level] est le niveau effectif demandé (le slider de l'alarme).
      */
-    private fun boostStream(am: AudioManager, stream: Int) {
+    private fun applyStreamLevel(am: AudioManager, stream: Int, level: Float) {
         val max = runCatching { am.getStreamMaxVolume(stream) }.getOrNull() ?: return
-        if (stream == AudioManager.STREAM_MUSIC) {
+        val idx = level.coerceIn(0f, 1f).times(max).roundToInt()
+        val which = streamIndex(stream)
+        if (which == 0) {
             if (originalMediaVolume == null) {
                 originalMediaVolume = runCatching { am.getStreamVolume(stream) }.getOrNull()
             }
@@ -306,16 +322,21 @@ class AlarmSoundPlayer {
                 originalAlarmVolume = runCatching { am.getStreamVolume(stream) }.getOrNull()
             }
         }
-        runCatching { am.setStreamVolume(stream, max, 0) }
+        runCatching { am.setStreamVolume(stream, idx, 0) }
     }
 
-    /** Restaure le volume d'origine de [stream] (no-op s'il n'a pas été boosté). */
+    /** Restaure le volume d'origine de [stream] (no-op s'il n'a pas été posé). */
     private fun restoreStream(am: AudioManager, stream: Int) {
-        val original = if (stream == AudioManager.STREAM_MUSIC) originalMediaVolume else originalAlarmVolume
+        val which = streamIndex(stream)
+        val original = if (which == 0) originalMediaVolume else originalAlarmVolume
         if (original == null) return
-        if (stream == AudioManager.STREAM_MUSIC) originalMediaVolume = null else originalAlarmVolume = null
+        if (which == 0) originalMediaVolume = null else originalAlarmVolume = null
         runCatching { am.setStreamVolume(stream, original, 0) }
     }
+
+    /** 0 = média, 1 = alarme (choix de l'enregistrement du volume d'origine). */
+    private fun streamIndex(stream: Int): Int =
+        if (stream == AudioManager.STREAM_MUSIC) 0 else 1
 
     /** Restaure les deux flux (à l'arrêt, ou si le focus est perdu). */
     private fun restoreAllStreamVolumes() {
