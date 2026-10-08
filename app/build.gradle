@@ -25,6 +25,10 @@ android {
         versionCode 1
         versionName "1.0.0"
         archivesBaseName = "PerimeterAlarm"
+        // Identifiant du build (commit git court) — défini dans defaultConfig
+        // pour qu'il soit disponible dans TOUS les build types (debug +
+        // release), pas seulement release.
+        buildConfigField "String", "BUILD_ID", "\"${buildGitId}\""
     }
 
     def keystoreProps = new Properties()
@@ -47,7 +51,6 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
-            buildConfigField "String", "BUILD_ID", "\"${buildGitId}\""
         }
     }
     compileOptions {

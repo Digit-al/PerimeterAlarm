@@ -17,7 +17,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import fr.rsgnl.perimetre.MainActivity
@@ -557,14 +556,19 @@ class LocationMonitorService : Service() {
             this, 0, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        return NotificationCompat.Builder(this, CHANNEL_MONITOR)
+        // Builder PLATFORM (minSdk 26, pas besoin de compat) : plus fiable
+        // que NotificationCompat pour le rendu du drapeau « non balayable ».
+        // setOngoing + FLAG_NO_CLEAR : l'utilisateur ne peut PAS balayer cette
+        // notification.
+        return Notification.Builder(this, CHANNEL_MONITOR)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setCategory(Notification.CATEGORY_SERVICE)
             .setContentIntent(pending)
             .build()
+            .apply { flags = flags or Notification.FLAG_NO_CLEAR }
     }
 
     private fun buildAlarmNotification(alarm: Alarm): Notification {
@@ -583,21 +587,24 @@ class LocationMonitorService : Service() {
             this, key + 1, open,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        return NotificationCompat.Builder(this, CHANNEL_ALARM)
+        // Builder PLATFORM (minSdk 26) + setOngoing + FLAG_NO_CLEAR
+        // : la notification d'alarme est PERSISTANTE — l'utilisateur ne peut
+        // PAS la balayer (sinon le son continuerait sans moyen de l'arrêter,
+        // le bouton « Arrêter » partant avec la notification). L'action
+        // « Arrêter » ci-dessous reste bien disponible : c'est la seule façon
+        // de couper l'alarme.
+        val stopAction = Notification.Action.Builder(null, getString(R.string.notif_alarm_stop), pendingDismiss).build()
+        return Notification.Builder(this, CHANNEL_ALARM)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.notif_alarm_title, alarm.displayName(this)))
             .setContentText(getString(R.string.notif_alarm_text, alarm.radiusMeters))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
-            // Notification PERSISTANTE : l'utilisateur ne peut PAS la balayer/
-            // l'enlever manuellement (sinon le son continuerait sans moyen de
-            // l'arrêter, le bouton « Arrêter » partant avec la notification).
-            // L'action « Arrêter » ci-dessous reste bien disponible — c'est la
-            // seule façon de couper l'alarme.
+            .setPriority(Notification.PRIORITY_HIGH)
+            .setCategory(Notification.CATEGORY_ALARM)
             .setOngoing(true)
-            .addAction(NotificationCompat.Action.Builder(null, getString(R.string.notif_alarm_stop), pendingDismiss).build())
+            .addAction(stopAction)
             .setContentIntent(pendingOpen)
             .build()
+            .apply { flags = flags or Notification.FLAG_NO_CLEAR }
     }
 
     companion object {
