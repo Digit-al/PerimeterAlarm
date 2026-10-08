@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import fr.rsgnl.perimetre.BuildConfig
 import fr.rsgnl.perimetre.R
 import fr.rsgnl.perimetre.data.MonitorStatus
 import fr.rsgnl.perimetre.util.Format
@@ -155,6 +156,15 @@ fun DebugScreen(viewModel: AppViewModel) {
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             item {
+                // Identifiant du build (commit git court) : permet de vérifier
+                // immédiatement quel build est installé (élimine toute
+                // confusion entre plusieurs APK téléchargés à des instants
+                // différents).
+                Text(
+                    stringResource(R.string.debug_build, BuildConfig.BUILD_ID, BuildConfig.VERSION_NAME),
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Spacer(Modifier.height(4.dp))
                 Text(
                     stringResource(R.string.debug_refresh, remaining),
                     style = MaterialTheme.typography.titleSmall

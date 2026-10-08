@@ -119,6 +119,7 @@
 
     <!-- Debug -->
     <string name="debug_title">Debug</string>
+    <string name="debug_build">Build : %1$s (v%2$s)</string>
     <string name="cd_clear_log">Effacer le journal</string>
     <string name="debug_refresh">Mise à jour toutes les 30 s · prochain rafraîchissement dans %1$d s</string>
     <string name="debug_help">« dist.entrée » : distance à l\'entrée du périmètre (« dans la zone » si à l\'intérieur). « prochain » : instant de la prochaine vérification du service (ou — si non planifiée). « vol » : volume effectif de la sonnerie que le service jouera réellement pour cette alarme (0–100 %) ; « volsrc » : sa provenance (« alarm » = slider de l\'alarme, « default » = réglages sonores par défaut de l\'application).</string>

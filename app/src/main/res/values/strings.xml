@@ -119,6 +119,7 @@
 
     <!-- Debug -->
     <string name="debug_title">Debug</string>
+    <string name="debug_build">Build: %1$s (v%2$s)</string>
     <string name="cd_clear_log">Clear log</string>
     <string name="debug_refresh">Updated every 30 s · next refresh in %1$d s</string>
     <string name="debug_help">\"dist.entry\": distance to the perimeter entry (\"inside zone\" if within). \"next\": time of the next service check (or — if not scheduled). \"vol\": effective ringtone volume the service will actually play for that alarm (0–100 %); \"volsrc\": where it comes from (\"alarm\" = the alarm\'s own slider, \"default\" = the app\'s default sound settings).</string>

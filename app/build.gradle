@@ -3,6 +3,17 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+// Identifiant du build : commit git court (ou "unknown" si pas dans un repo
+// git), injecté dans BuildConfig.BUILD_ID. Affiché sur la page Debug pour
+// vérifier quel build est installé (élimine toute confusion entre APK).
+def buildGitId = 'unknown'
+try {
+    def proc = ['git', 'rev-parse', '--short', 'HEAD'].execute(null, rootDir)
+    proc.waitFor()
+    def out = proc.in.text.trim()
+    if (out) buildGitId = out
+} catch (ignored) {}
+
 android {
     namespace 'fr.rsgnl.perimetre'
     compileSdk 34
@@ -36,6 +47,7 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
+            buildConfigField "String", "BUILD_ID", "\"${buildGitId}\""
         }
     }
     compileOptions {
@@ -47,6 +59,7 @@ android {
     }
     buildFeatures {
         compose true
+        buildConfig true
     }
     composeOptions {
         kotlinCompilerExtensionVersion "1.5.14"
