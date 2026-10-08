@@ -78,7 +78,7 @@
 
 **Action** : ajout de l'**identifiant du build (commit git court)** dans `BuildConfig.BUILD_ID` (`3bf2bd4`) et affichage en haut de la page **Debug** — pour vérifier immédiatement quel build est installé et trancher.
 
-**État** : David a réinstallé « on-top » ; la page Debug affiche bien **Build: `3bf2bd4` (v1.0.0)** → le bon build est installé. **Volume validé** : « le volume est maintenant ok » (slider = niveau perçu, panneau système ajustable). **Verdict sur la persistance de la notification attendu en fin d'après-midi.**
+**État** : David a réinstallé « on-top » ; la page Debug affiche bien **Build: `3bf2bd4` (v1.0.0)** → le bon build est installé. **Volume validé** : « le volume est maintenant ok » (slider = niveau perçu, panneau système ajustable). **Persistance** : David confirme le build `3bf2bd4` installé MAIS les deux notifications (monitor + alarme) restent **balayables** — `setOngoing(true)` via `NotificationCompat` n'a pas suffi. **Fix `97a7d1d`** : passage au **builder platform** `android.app.Notification.Builder` (minSdk 26, pas besoin de compat) + **`FLAG_NO_CLEAR`** explicite sur les deux notifications. Bonus : `BUILD_ID` déplacé de `release` à `defaultConfig` (c'était la cause d'un build debug cassé — le champ n'existait qu'en release). Nouveau build **release signé** poussé sur la release 1.0.0 (APK 11 645 392 o, build ID `97a7d1d`). **À re-tester** : notification non balayable + bouton « Arrêter » qui coupe bien l'alarme.
 
 ---
 
