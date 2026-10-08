@@ -5,13 +5,13 @@
 
 ---
 
-## Current State (last updated: 2026-10-07)
+## Current State (last updated: 2026-10-08)
 
 **Branch**: `main`  
-**Last commit**: `e93749f` — fix: make the alarm notification persistent so it cannot be dismissed  
+**Last commit**: `3bf2bd4` — feat: show the build id (git short commit) on the Debug page  
 **Build**: ✅ assembles successfully (debug + release APK)  
-**Release 1.0.0**: tag `1.0.0` = `e93749f` (asset refreshed 2026-10-07 — raw-binary upload, md5 verified; F-Droid ref → `e93749f`).  
-**User testing**: (4) « Slider à fond mais pas au max » — corrigé dans `49c01c6`, **validé sur appareil 2026-09-28** (« ça fonctionne »). (5) « Le son est toujours augmenté à 100 % quel que soit le slider » — cause trouvée : le canal de notification `perimetre_alarm` (IMPORTANCE_HIGH) jouait son **son par défaut système** (plein volume, indépendant du slider) en plus de la sonnerie du lecteur ; corrigé dans `77a1cd1` (`setSound(null)` sur le canal) — **insuffisant** : les propriétés d'un canal sont immuables après création, le canal v1 continuait de sonner à plein volume. Vrai fix dans `03ddc03` (nouveau canal silencieux `perimetre_alarm_v2`, v1 supprimé). La page Debug affiche désormais le **volume effectif** par alarme (vol/volsrc). **Reste** : le volume perçu suivait bien le slider, mais le panneau de volume système affichait 100 % (boost au max + compensation) — corrigé dans `f48d5b2` (flux actif posé directement au niveau du slider). La **notification d'alarme est rendue persistante** dans `e93749f` (`setOngoing` — plus balayable ; le bouton « Arrêter » est la seule façon de couper l'alarme ; `stopAlarmSound` retire la notification, aussi à l'arrêt automatique). **À valider** : dans `f48d5b2` le panneau système affiche le niveau de l'alarme et il est ajustable ; dans `e93749f` la notification ne se balance pas et le bouton « Arrêter » coupe bien l'alarme.
+**Release 1.0.0**: tag `1.0.0` = `3bf2bd4` (asset refreshed 2026-10-08 — raw-binary upload, md5 verified; F-Droid ref → `3bf2bd4`).  
+**User testing**: (4) « Slider à fond mais pas au max » — corrigé dans `49c01c6`, **validé sur appareil 2026-09-28** (« ça fonctionne »). (5) « Le son est toujours augmenté à 100 % quel que soit le slider » — cause trouvée : le canal de notification `perimetre_alarm` (IMPORTANCE_HIGH) jouait son **son par défaut système** (plein volume, indépendant du slider) en plus de la sonnerie du lecteur ; corrigé dans `77a1cd1` (`setSound(null)` sur le canal) — **insuffisant** : les propriétés d'un canal sont immuables après création, le canal v1 continuait de sonner à plein volume. Vrai fix dans `03ddc03` (nouveau canal silencieux `perimetre_alarm_v2`, v1 supprimé). La page Debug affiche désormais le **volume effectif** par alarme (vol/volsrc). **Reste** : le volume perçu suivait bien le slider, mais le panneau de volume système affichait 100 % (boost au max + compensation) — corrigé dans `f48d5b2` (flux actif posé directement au niveau du slider). La **notification d'alarme est rendue persistante** dans `e93749f` (`setOngoing` — plus balayable ; le bouton « Arrêter » est la seule façon de couper l'alarme ; `stopAlarmSound` retire la notification, aussi à l'arrêt automatique). **2026-10-08** : David confirme avoir installé le build `3bf2bd4` (affiché sur la page Debug) ; **verdict sur la persistance de la notification attendu en fin d'après-midi**. **À valider** : dans `f48d5b2` le panneau système affiche le niveau de l'alarme et il est ajustable ; dans `e93749f`/`3bf2bd4` la notification ne se balance pas et le bouton « Arrêter » coupe bien l'alarme.
 
 ### What's done
 - [x] Core app (Compose UI, 4 screens: Home/Editor/Settings/Debug)
@@ -67,6 +67,20 @@
 ---
 
 ## Session Log
+
+### Session 2026-10-08 (notification toujours balayable ? → vérification du build installé — `3bf2bd4`)
+
+**Contexte** : David : « j'ai réinstallé l'APK hier à 23:00 et ce matin je pouvais toujours balayer la notification. »
+
+**Vérifications** :
+- L'APK sur la release **contient bien** `setOngoing(true)` (décompilé, md5 = build `e93749f`), uploadé le 2026-10-07 18:14 UTC — donc présent avant la réinstallation à 23:00.
+- Hypothèse la plus probable : l'APK installé n'était pas le plus récent (téléchargé avant 18:14).
+
+**Action** : ajout de l'**identifiant du build (commit git court)** dans `BuildConfig.BUILD_ID` (`3bf2bd4`) et affichage en haut de la page **Debug** — pour vérifier immédiatement quel build est installé et trancher.
+
+**État** : David a réinstallé « on-top » ; la page Debug affiche bien **Build: `3bf2bd4` (v1.0.0)** → le bon build est installé. **Verdict sur la persistance de la notification attendu en fin d'après-midi.**
+
+---
 
 ### Session 2026-10-07c (notification d'alarme supprimable → persistante — `e93749f`)
 
