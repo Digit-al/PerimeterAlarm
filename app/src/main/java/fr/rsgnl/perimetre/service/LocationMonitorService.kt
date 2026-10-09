@@ -111,9 +111,10 @@ class LocationMonitorService : Service() {
                 NotificationManagerCompat.from(this).cancel(key)
                 intent.getStringExtra(EXTRA_ALARM_ID)?.let { stopAlarmSound(it) }
             }
-            // Une notification a été BALAYÉE (setDeleteIntent). On la re-poste
-            // tant que l'état est encore actif : le balayage est donc inefficace
-            // (même comportement qu'une vraie alarme réveil).
+            // La notification de MONITORING a été balayée (setDeleteIntent) :
+            // on la re-poste — elle indique que la surveillance est active et
+            // doit rester visible. (Les notifications d'alarme sont elles
+            // arrêtées au balayage, cf. ACTION_DISMISS ci-dessus.)
             ACTION_REPOST -> handleRepost(intent)
         }
         return START_STICKY
@@ -426,36 +427,17 @@ class LocationMonitorService : Service() {
     }
 
     /**
-     * Re-poste une notification qui vient d'être balayée (via [setDeleteIntent]),
-     * mais seulement si l'état qui la justifie est encore actif :
+     * Re-poste la notification de MONITORING après un balayage (via
+     * [setDeleteIntent]) : elle indique que la surveillance de position est
+     * active et doit rester visible tant que le service tourne.
      *
-     * - **monitor** : le service tourne tant qu'il y a au moins une alarme
-     *   activée → on re-post la notification de monitoring ;
-     * - **alarme** : on re-post tant que la sonnerie de cette alarme joue
-     *   encore (le bouton « Arrêter » reste la seule façon de l'arrêter).
-     *
-     * Ainsi, balayer la notification n'a pour effet que de la faire réapparaître
-     * immédiatement — l'utilisateur ne peut pas "s'y soustraire" tant que l'alarme
-     * sonne, sans pour autant pouvoir couper le son autrement que via l'app.
+     * Les notifications d'ALARMES, elles, sont arrêtées au balayage (le
+     * setDeleteIntent pointe sur ACTION_DISMISS) : balayer = « j'ai vu,
+     * j'arrête », ce qui est le comportement attendu par l'utilisateur.
      */
     private fun handleRepost(intent: Intent) {
-        // Cas 1 : notification de monitoring balayée → le service est actif
-        // (on est dans onStartCommand, donc oui par définition) → on la re-poste.
-        // C'est le cas le plus fréquent (le receiver d'alarme n'envoie pas de key
-        // d'alarme pour la notification de monitoring).
-        if (intent.getIntExtra(EXTRA_ALARM_KEY, 0) == NOTIF_ID_MONITOR) {
-            NotificationManagerCompat.from(this)
-                .notify(NOTIF_ID_MONITOR, buildMonitorNotification(getString(R.string.notif_monitor_text)))
-            return
-        }
-
-        // Cas 2 : notification d'alarme balayée → on la re-poste tant que la
-        // sonnerie de cette alarme joue encore.
-        val alarmId = intent.getStringExtra(EXTRA_ALARM_ID) ?: return
-        if (!soundPlayer.isPlaying(alarmId)) return   // plus rien ne sonne → on laisse balayer
-        val alarm = repository.loadAlarms().firstOrNull { it.id == alarmId } ?: return
         NotificationManagerCompat.from(this)
-            .notify(alarmId.hashCode(), buildAlarmNotification(alarm))
+            .notify(NOTIF_ID_MONITOR, buildMonitorNotification(getString(R.string.notif_monitor_text)))
     }
 
     private fun stopAlarmSound(alarmId: String) {
@@ -638,17 +620,18 @@ class LocationMonitorService : Service() {
             this, key + 1, open,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        // La notification d'alarme est PERSISTANTE de fait : sur Android 13+
-        // setOngoing(true) / FLAG_NO_CLEAR ne suffisent plus à empêcher le
-        // balayage. On ajoute un setDeleteIntent : si l'utilisateur balaye,
-        // le service re-poste la notification tant que la sonnerie joue encore
-        // (handleRepost). L'action « Arrêter » ci-dessous reste la seule façon
-        // de couper l'alarme.
+        // Balayer la notification = ARRÊTER l'alarme (comme appuyer sur le
+        // bouton « Arrêter ») : le setDeleteIntent pointe sur ACTION_DISMISS,
+        // qui annule la notification ET coupe la sonnerie. Sur Android 13+
+        // setOngoing(true) / FLAG_NO_CLEAR ne suffisent de toute façon plus à
+        // empêcher le balayage — autant en faire une action utile.
         val stopAction = Notification.Action.Builder(null, getString(R.string.notif_alarm_stop), pendingDismiss).build()
+        // Balayer la notification d'alarme = ARRÊTER l'alarme (son + notif),
+        // exactement comme le bouton « Arrêter ».
         val deleteIntent = PendingIntent.getService(
             this, key + 2,
             Intent(this, LocationMonitorService::class.java).apply {
-                action = ACTION_REPOST
+                action = ACTION_DISMISS
                 putExtra(EXTRA_ALARM_KEY, key)
                 putExtra(EXTRA_ALARM_ID, alarm.id)
             },
