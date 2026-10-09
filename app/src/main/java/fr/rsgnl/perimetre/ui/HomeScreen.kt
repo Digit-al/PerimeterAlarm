@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Add
@@ -272,9 +273,13 @@ fun AlarmRow(
 
     // Le fond rouge est sur le CONTENEUR (Box parent) : il épouse exactement
     // la taille de la carte et est révélé quand la carte se décale via offset.
+    // 12 dp = rayon M3 par défaut de la Card (shapes.medium) : le fond rouge
+    // épouse exactement la forme de la carte.
+    val cardCorner = RoundedCornerShape(12.dp)
+
     Box(modifier = Modifier
         .fillMaxWidth()
-        .background(Color(0xFFE57373))
+        .background(Color(0xFFE57373), cardCorner)
     ) {
         Card(
             modifier = Modifier
