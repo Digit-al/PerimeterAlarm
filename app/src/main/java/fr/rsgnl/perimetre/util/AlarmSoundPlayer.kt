@@ -171,6 +171,9 @@ class AlarmSoundPlayer {
         play(id, context, entry.uri, entry.volume, entry.loop)
     }
 
+    /** Est-ce que l'alarme [id] est actuellement en train de sonner ? */
+    fun isPlaying(id: String): Boolean = players.containsKey(id)
+
     fun stopSound(id: String) {
         val removed = players.remove(id)
         removed?.let {
