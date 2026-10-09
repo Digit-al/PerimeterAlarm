@@ -1,5 +1,6 @@
 package fr.rsgnl.perimetre.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import android.app.AlarmManager
 import android.content.Context
@@ -18,6 +20,8 @@ import android.location.Location
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,6 +31,7 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Settings
@@ -48,12 +53,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,10 +69,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import fr.rsgnl.perimetre.R
 import fr.rsgnl.perimetre.data.Alarm
+import kotlinx.coroutines.launch
 import fr.rsgnl.perimetre.ui.components.observeCurrentLocation
 import fr.rsgnl.perimetre.util.Format
 import fr.rsgnl.perimetre.util.Geo
 import fr.rsgnl.perimetre.util.TimeUtils
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -220,7 +229,13 @@ fun HomeScreen(viewModel: AppViewModel) {
                     }
                 }
                 items(alarms, key = { it.id }) { alarm ->
-                    AlarmRow(alarm = alarm, viewModel = viewModel, currentLoc = currentLoc)
+                    AlarmRow(
+                        alarm = alarm,
+                        viewModel = viewModel,
+                        currentLoc = currentLoc
+                    ) {
+                        viewModel.deleteAlarm(alarm.id)
+                    }
                 }
             }
         }
@@ -228,8 +243,14 @@ fun HomeScreen(viewModel: AppViewModel) {
 }
 
 @Composable
-fun AlarmRow(alarm: Alarm, viewModel: AppViewModel, currentLoc: Location?) {
+fun AlarmRow(
+    alarm: Alarm,
+    viewModel: AppViewModel,
+    currentLoc: Location?,
+    onDelete: (() -> Unit)? = null
+) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val inPeriod = if (alarm.oneShot) true else TimeUtils.isWithinPeriod(
         alarm.alwaysOn, alarm.daysOfWeek,
         alarm.startHour, alarm.startMinute, alarm.endHour, alarm.endMinute
@@ -240,54 +261,104 @@ fun AlarmRow(alarm: Alarm, viewModel: AppViewModel, currentLoc: Location?) {
         Geo.distanceMeters(loc, alarm.latitude, alarm.longitude) - alarm.radiusMeters
     }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+    // Balayage horizontal (swipe-to-delete) : glissez la carte à gauche ou à
+    // droite pour supprimer l'alarme. Le fond rouge apparaît sous la carte.
+    val offsetX = remember { Animatable(0f) }
+    val density = LocalDensity.current
+    val thresholdPx = with(density) { 80.dp.toPx() }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        // Fond révélé quand la carte s'écarte.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFE57373))
+        )
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset(x = offsetX.value.dp)
+                .pointerInput(alarm.id) {
+                    // Horizontal uniquement : le défilement VERTICAL de la liste
+                    // reste géré par le LazyColumn, seul le balayage horizontal
+                    // (gauche/droite) déplace la carte.
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            val final = offsetX.targetValue
+                            val willDelete = onDelete != null && abs(final) > thresholdPx
+                            scope.launch {
+                                if (willDelete) {
+                                    // Anime la sortie puis supprime.
+                                    offsetX.animateTo((if (final > 0) 1 else -1) * 1000f)
+                                    onDelete?.invoke()
+                                } else {
+                                    // Revenir en place.
+                                    offsetX.animateTo(0f)
+                                }
+                            }
+                        },
+                        onDragCancel = {
+                            scope.launch { offsetX.animateTo(0f) }
+                        }
+                    ) { change, dragAmount ->
+                        change.consume()
+                        scope.launch {
+                            offsetX.snapTo(offsetX.value + dragAmount)
+                        }
+                    }
+                }
         ) {
-            Box(
-                Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(if (activeNow) Color(0xFF4CAF50) else Color(0xFFBDBDBD))
-            )
-            Spacer(Modifier.size(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = alarm.displayName(context),
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(if (activeNow) Color(0xFF4CAF50) else Color(0xFFBDBDBD))
                 )
-                Text(
-                    text = stringResource(
-                        R.string.home_coord_radius,
-                        alarm.latitude, alarm.longitude, alarm.radiusMeters
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = periodLabel(context, alarm),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (activeNow) {
-                    val inside = distEntry != null && distEntry <= 0
+                Spacer(Modifier.size(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = alarm.displayName(context),
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     Text(
                         text = stringResource(
-                            R.string.home_distance_entry,
-                            Format.distanceToEntry(context, distEntry)
+                            R.string.home_coord_radius,
+                            alarm.latitude, alarm.longitude, alarm.radiusMeters
                         ),
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (inside) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Text(
+                        text = periodLabel(context, alarm),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (activeNow) {
+                        val inside = distEntry != null && distEntry <= 0
+                        Text(
+                            text = stringResource(
+                                R.string.home_distance_entry,
+                                Format.distanceToEntry(context, distEntry)
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (inside) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
+                IconButton(onClick = { viewModel.openEditAlarm(alarm.id) }) {
+                    Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.cd_edit))
+                }
+                IconButton(onClick = { onDelete?.invoke() }) {
+                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.cd_delete))
+                }
+                Switch(checked = alarm.enabled, onCheckedChange = { viewModel.toggleAlarm(alarm.id, it) })
             }
-            IconButton(onClick = { viewModel.openEditAlarm(alarm.id) }) {
-                Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.cd_edit))
-            }
-            Switch(checked = alarm.enabled, onCheckedChange = { viewModel.toggleAlarm(alarm.id, it) })
         }
     }
 }

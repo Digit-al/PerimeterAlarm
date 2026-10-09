@@ -40,6 +40,7 @@
     <string name="cd_debug">Debug</string>
     <string name="cd_add_alarm">Add an alarm</string>
     <string name="cd_edit">Edit</string>
+    <string name="cd_delete">Delete</string>
     <string name="home_empty_title">No alarms</string>
     <string name="home_empty_subtitle">Tap + to create one</string>
     <string name="home_coord_radius">%1$.4f, %2$.4f · radius %3$d m</string>
