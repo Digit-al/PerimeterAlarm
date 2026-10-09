@@ -263,9 +263,12 @@ fun AlarmRow(
 
     // Balayage horizontal (swipe-to-delete) : glissez la carte à gauche ou à
     // droite pour supprimer l'alarme. Le fond rouge apparaît sous la carte.
+    // offsetX est en **dp** (pas en px) : le déplacement du doigt, qui arrive
+    // en pixels depuis le geste, est converti ici pour que la carte suive
+    // le doigt 1:1 quelle que soit la densité de l'écran.
     val offsetX = remember { Animatable(0f) }
     val density = LocalDensity.current
-    val thresholdPx = with(density) { 80.dp.toPx() }
+    val thresholdDp = 80f   // seuil de suppression en dp (≈ 4 cm)
 
     Box(modifier = Modifier.fillMaxWidth()) {
         // Fond révélé quand la carte s'écarte.
@@ -285,7 +288,7 @@ fun AlarmRow(
                     detectHorizontalDragGestures(
                         onDragEnd = {
                             val final = offsetX.targetValue
-                            val willDelete = onDelete != null && abs(final) > thresholdPx
+                            val willDelete = onDelete != null && abs(final) > thresholdDp
                             scope.launch {
                                 if (willDelete) {
                                     // Anime la sortie puis supprime.
@@ -302,8 +305,11 @@ fun AlarmRow(
                         }
                     ) { change, dragAmount ->
                         change.consume()
+                        // dragAmount est en PX (renvoyé par le geste) :
+                        // conversion en dp pour que la carte suive le doigt 1:1.
+                        val dragDp = dragAmount / density.density
                         scope.launch {
-                            offsetX.snapTo(offsetX.value + dragAmount)
+                            offsetX.snapTo(offsetX.value + dragDp)
                         }
                     }
                 }
