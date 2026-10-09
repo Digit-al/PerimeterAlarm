@@ -270,13 +270,12 @@ fun AlarmRow(
     val density = LocalDensity.current
     val thresholdDp = 80f   // seuil de suppression en dp (≈ 4 cm)
 
-    Box(modifier = Modifier.fillMaxWidth()) {
-        // Fond révélé quand la carte s'écarte.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFFE57373))
-        )
+    // Le fond rouge est sur le CONTENEUR (Box parent) : il épouse exactement
+    // la taille de la carte et est révélé quand la carte se décale via offset.
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .background(Color(0xFFE57373))
+    ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
